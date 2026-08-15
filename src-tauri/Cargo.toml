@@ -1,0 +1,50 @@
+[package]
+name = "depot"
+version = "0.1.0"
+description = "Cross-platform file explorer with cloud drives, media tabs, and legal torrent downloads"
+authors = ["Syed Zakiuddin"]
+license = "MIT"
+repository = "https://github.com/zaki-vemp/depot-desktop"
+edition = "2021"
+
+[lib]
+name = "depot_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# `unstable` unlocks multi-webview, which web tabs need: an iframe cannot render
+# sites that send X-Frame-Options, a child webview can.
+tauri = { version = "2", features = ["protocol-asset", "unstable"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+walkdir = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio = { version = "1", features = ["macros", "net", "io-util", "fs", "time", "sync", "process"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+url = "2"
+urlencoding = "2"
+chrono = { version = "0.4", features = ["serde"] }
+librqbit = "8.1.1"
+futures-util = "0.3"
+thiserror = "2"
+trash = "5"
+sysinfo = { version = "0.33", default-features = false, features = ["disk"] }
+calamine = "0.26"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+libloading = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+gtk = { version = "0.18", features = ["v3_24"] }
+glib = "0.18"
+webkit2gtk = { version = "2", features = ["v2_40"] }

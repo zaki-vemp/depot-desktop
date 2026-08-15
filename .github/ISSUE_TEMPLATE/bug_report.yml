@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in Depot does not work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not file security problems here —
+        see [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what Depot did, and what you expected instead.
+      placeholder: |
+        1. Opened a Google Drive tab
+        2. Pasted a folder into Documents
+        3. The transfer stayed at 0% and never errored
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      placeholder: macOS 15.3 / Windows 11 23H2 / Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Depot version
+      description: From Settings, or the commit you built from.
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Files and folders
+        - Transfers
+        - Previews and media playback
+        - Google Drive / cloud
+        - Web and app tabs
+        - Torrents
+        - Interface and theming
+        - Build and setup
+        - Something else
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: Output from `npm run tauri dev`, or the webview console. Rendered as code, no backticks needed.
+      render: shell

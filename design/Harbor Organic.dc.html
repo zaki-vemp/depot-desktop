@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/organic-19e1bf3b-3fc7-4cbe-82cd-0ee57de023f4/styles.css">
+<script src="_ds/organic-19e1bf3b-3fc7-4cbe-82cd-0ee57de023f4/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--color-neutral-200); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--color-neutral-300); border-radius: 999px; }
+  a { color: var(--color-accent-700); text-decoration: none; }
+  a:hover { color: var(--color-accent-800); text-decoration: underline; }
+  /* Dark mode: the same Organic roles re-grounded on a warm dark page — the
+     neutral ramp inverts so every 100–900 reference keeps its intended weight. */
+  [data-theme="dark"] {
+    --color-bg: #241f1b;
+    --color-surface: #2e2721;
+    --color-text: #f5ead8;
+    --color-accent: #d98650;
+    --color-accent-2: #9aab78;
+    --color-neutral-100: #1a1613;
+    --color-neutral-200: #241f1b;
+    --color-neutral-300: #322b25;
+    --color-neutral-400: #473e35;
+    --color-neutral-500: #6b5f53;
+    --color-neutral-600: #9d9184;
+    --color-neutral-700: #bdb2a4;
+    --color-neutral-800: #e2d7c7;
+    --color-neutral-900: #f5ead8;
+    --color-accent-100: #3a2b21;
+    --color-accent-200: #4d382a;
+    --color-accent-300: #6b4c36;
+    --color-accent-700: #e9a173;
+    --color-accent-800: #f0b892;
+    --color-accent-900: #f7d3b6;
+    --color-accent-400: #b8763f;
+    --color-accent-500: #c98253;
+    --color-accent-600: #d99266;
+    --color-accent-2-100: #2c3324;
+    --color-accent-2-200: #38412c;
+    --color-accent-2-300: #4a5639;
+    --color-accent-2-400: #66744f;
+    --color-accent-2-500: #7f8f63;
+    --color-accent-2-600: #9aab78;
+    --color-accent-2-700: #b6c795;
+    --color-accent-2-800: #c6d5a9;
+    --color-accent-2-900: #d6e2bd;
+    --color-divider: color-mix(in srgb, #f5ead8 18%, transparent);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 6px 16px rgba(0,0,0,.45);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,.5);
+  }
+</style>
+</helmet>
+<div data-theme="{{ theme }}" style="height: 100vh; display: flex; flex-direction: column; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden">
+
+  <div style="height: 56px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 20px">
+    <div style="display: flex; gap: 9px">
+      <i style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-accent); display: block"></i>
+      <i style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-accent-300); display: block"></i>
+      <i style="width: 12px; height: 12px; border-radius: 50%; background: var(--color-accent-2); display: block"></i>
+    </div>
+    <div style="font-family: var(--font-heading); font-size: 24px; line-height: 1">Harbor</div>
+    <div style="font-size: 13px; color: var(--color-neutral-700)">Your files, wherever they live</div>
+    <div style="flex: 1"></div>
+    <div onClick="{{ toggleTheme }}" style="display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 10px; border-radius: 999px; cursor: pointer; background: var(--color-surface); color: var(--color-accent-700); font-size: 12.5px; font-weight: 600" style-hover="background: var(--color-accent-100)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="{{ themeIcon }}"></path></svg>
+      <span>{{ themeLabel }}</span>
+    </div>
+    <div style="display: flex; gap: 7px">
+      <span class="tag tag-neutral">macOS</span>
+      <span class="tag tag-neutral">Windows</span>
+      <span class="tag tag-neutral">Linux</span>
+    </div>
+  </div>
+
+  <div style="flex: 1; min-height: 0; display: flex; gap: 14px; padding: 0 14px 14px">
+
+    <div style="width: 244px; flex: none; overflow-y: auto; padding: 16px 12px 20px; background: var(--color-surface); border-radius: var(--radius-lg)">
+      <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+        <div style="margin-bottom: 20px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 0 12px 8px; font-size: 12px; font-weight: 600; color: var(--color-neutral-700)">
+            <span>{{ g.label }}</span>
+            <span style="font-size: 11px; color: var(--color-neutral-600)">{{ g.hint }}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 3px">
+            <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+              <div onClick="{{ it.onClick }}" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-radius: 999px; background: {{ it.bg }}" style-hover="background: var(--color-accent-100)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none; color: {{ it.iconFg }}"><path d="{{ it.d }}"></path></svg>
+                <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; font-weight: {{ it.weight }}; color: {{ it.fg }}">{{ it.name }}</span>
+                <span style="font-size: 11px; color: var(--color-neutral-600)">{{ it.badge }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+
+      <div style="flex: none; display: flex; align-items: center; gap: 7px; overflow-x: auto; padding-bottom: 2px">
+        <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+          <div onClick="{{ t.onClick }}" style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; min-width: 0; max-width: 210px; flex: none; cursor: pointer; border-radius: 999px; background: {{ t.bg }}; box-shadow: {{ t.shadow }}" style-hover="background: var(--color-accent-100)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none; color: {{ t.iconFg }}"><path d="{{ t.d }}"></path></svg>
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: {{ t.weight }}; color: {{ t.fg }}">{{ t.title }}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" style="flex: none; color: {{ t.closeFg }}"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+          </div>
+        </sc-for>
+        <div style="flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 999px; cursor: pointer; background: var(--color-surface); color: var(--color-accent-700)" style-hover="background: var(--color-accent-100)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        </div>
+      </div>
+
+      <div style="flex: none; display: flex; align-items: center; gap: 10px">
+        <div style="display: flex; gap: 4px">
+          <button class="btn btn-ghost btn-icon" aria-label="Back"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+          <button class="btn btn-ghost btn-icon" aria-label="Forward"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+          <button class="btn btn-ghost btn-icon" aria-label="Up"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5m-7 7 7-7 7 7"></path></svg></button>
+        </div>
+        <div style="flex: 1; min-width: 0; display: flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 999px; background: var(--color-surface); font-size: 13.5px; color: var(--color-neutral-800); overflow: hidden"><span style="display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ crumbs }}</span></div>
+        <sc-if value="{{ isFiles }}" hint-placeholder-val="{{ true }}">
+          <div style="flex: none; display: flex; align-items: center; gap: 10px">
+            <div class="seg">
+              <div onClick="{{ setGrid }}" class="seg-opt" style="background: {{ gridBg }}; color: {{ gridFg }}">Grid</div>
+              <div onClick="{{ setList }}" class="seg-opt" style="background: {{ listBg }}; color: {{ listFg }}">List</div>
+            </div>
+            <input class="input" value="{{ filter }}" onChange="{{ onFilter }}" placeholder="Search this place" style="width: 232px; border-radius: 999px" />
+          </div>
+        </sc-if>
+        <sc-if value="{{ showToolbarAux }}" hint-placeholder-val="{{ false }}">
+          <span class="tag tag-accent-2" style="flex: none">{{ toolbarAux }}</span>
+        </sc-if>
+      </div>
+
+      <div style="flex: 1; min-height: 0; display: flex; gap: 14px">
+        <div style="flex: 1; min-width: 0; overflow-y: auto; padding: 20px; background: var(--color-surface); border-radius: var(--radius-lg)">
+
+          <sc-if value="{{ isFiles }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px">
+                <div style="font-family: var(--font-heading); font-size: 26px; line-height: 1">{{ resultLabel }}</div>
+                <div style="font-size: 13px; color: var(--color-neutral-700)">{{ resultCount }}</div>
+              </div>
+              <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 16px">
+                  <sc-for list="{{ files }}" as="f" hint-placeholder-count="10">
+                    <div onClick="{{ f.onClick }}" style="border-radius: var(--radius-lg); background: {{ f.bg }}; box-shadow: {{ f.shadow }}; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 11px" style-hover="box-shadow: var(--shadow-md)">
+                      <div class="washed" style="height: 88px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-md); background: {{ f.thumbBg }}; position: relative">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="color: {{ f.iconFg }}"><path d="{{ f.d }}"></path></svg>
+                        <span style="position: absolute; bottom: 7px; right: 8px; font-size: 10px; font-weight: 600; color: var(--color-neutral-700)">{{ f.ext }}</span>
+                      </div>
+                      <div style="font-size: 13.5px; font-weight: 500; line-height: 1.35; word-break: break-word">{{ f.name }}</div>
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--color-neutral-700)">
+                        <span>{{ f.size }}</span>
+                        <span style="color: {{ f.srcFg }}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ f.src }}</span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+                <table class="table" style="width: 100%">
+                  <thead><tr><th style="text-align: left">Name</th><th style="text-align: left">Kind</th><th style="text-align: right">Size</th><th style="text-align: left">Modified</th><th style="text-align: left">Source</th></tr></thead>
+                  <tbody>
+                    <sc-for list="{{ files }}" as="f" hint-placeholder-count="8">
+                      <tr onClick="{{ f.onClick }}" style="cursor: pointer; background: {{ f.rowBg }}">
+                        <td style="display: flex; align-items: center; gap: 10px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="color: {{ f.iconFg }}"><path d="{{ f.d }}"></path></svg>{{ f.name }}</td>
+                        <td>{{ f.kind }}</td>
+                        <td style="text-align: right">{{ f.size }}</td>
+                        <td>{{ f.modified }}</td>
+                        <td>{{ f.src }}</td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isVideo }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 20px; height: 100%">
+              <div style="flex: 1; min-height: 250px; border-radius: var(--radius-lg); background: var(--color-neutral-900); display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden">
+                <i style="position: absolute; width: 340px; height: 340px; border-radius: 50%; background: color-mix(in srgb, var(--color-accent) 22%, transparent); top: -120px; right: -80px; display: block"></i>
+                <div style="text-align: center; color: var(--color-neutral-100); position: relative">
+                  <div style="font-family: var(--font-heading); font-size: 28px">Reel_04.mov</div>
+                  <div style="font-size: 13px; margin-top: 8px; color: var(--color-neutral-300)">3840 × 2160 · ProRes 422 · 24 fps · hardware decode</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 14px">
+                <div style="display: flex; align-items: center; gap: 14px">
+                  <span style="font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">{{ elapsed }}</span>
+                  <div onClick="{{ scrub }}" style="flex: 1; height: 10px; border-radius: 999px; background: var(--color-neutral-200); cursor: pointer; position: relative">
+                    <div style="position: absolute; inset: 0 auto 0 0; width: {{ pctText }}; border-radius: 999px; background: var(--color-accent)"></div>
+                  </div>
+                  <span style="font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--color-neutral-700)">04:12</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 9px; flex-wrap: wrap">
+                  <button onClick="{{ togglePlay }}" class="btn btn-primary" style="min-width: 104px">{{ playLabel }}</button>
+                  <button class="btn btn-secondary">Prev</button>
+                  <button class="btn btn-secondary">Next</button>
+                  <button class="btn btn-secondary">1.0×</button>
+                  <button class="btn btn-secondary">Subtitles · EN</button>
+                  <button class="btn btn-secondary">Audio · Stereo</button>
+                  <div style="flex: 1"></div>
+                  <button class="btn btn-secondary">Open in IINA</button>
+                  <button class="btn btn-secondary">Full screen</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isDoc }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 18px; align-items: center">
+              <div style="display: flex; align-items: center; gap: 10px; align-self: stretch">
+                <div style="font-family: var(--font-heading); font-size: 24px; line-height: 1">{{ docTitle }}</div>
+                <div style="flex: 1"></div>
+                <button class="btn btn-secondary">Fit width</button>
+                <button class="btn btn-secondary">Rotate</button>
+                <button class="btn btn-secondary">Export</button>
+              </div>
+              <div class="washed" style="width: 520px; max-width: 100%; aspect-ratio: 17 / 22; display: flex; align-items: center; justify-content: center; background: var(--color-neutral-100); border-radius: var(--radius-lg); box-shadow: var(--shadow-md)">
+                <div style="text-align: center; color: var(--color-neutral-700); font-size: 13px; padding: 0 32px">{{ docNote }}</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isWeb }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 16px; height: 100%">
+              <div style="display: flex; align-items: center; gap: 9px">
+                <input class="input" value="https://lucide.dev/icons" onChange="{{ noop }}" style="flex: 1; border-radius: 999px" />
+                <button class="btn btn-secondary">Reload</button>
+                <button class="btn btn-secondary">Open in Safari</button>
+              </div>
+              <div style="flex: 1; min-height: 260px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-lg); background: var(--color-accent-100); position: relative; overflow: hidden">
+                <i style="position: absolute; width: 260px; height: 260px; border-radius: 50%; background: color-mix(in srgb, var(--color-accent-2) 26%, transparent); bottom: -110px; left: -70px; display: block"></i>
+                <div style="text-align: center; max-width: 430px; position: relative">
+                  <div style="font-family: var(--font-heading); font-size: 26px; line-height: 1.1">A real browser tab</div>
+                  <div style="font-size: 13.5px; margin-top: 10px; color: var(--color-accent-900)">Pages render in a native webview, not an iframe — sites that block embedding still load, and cookies stay in Harbor's own profile.</div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isTorrents }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 18px">
+              <div style="display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap">
+                <div class="field" style="flex: 1; min-width: 260px">
+                  <label>Magnet link, .torrent URL or local file</label>
+                  <input class="input" value="{{ magnet }}" onChange="{{ onMagnet }}" placeholder="magnet:?xt=urn:btih:…" style="border-radius: 999px" />
+                </div>
+                <button class="btn btn-primary">Add download</button>
+                <button class="btn btn-secondary">Choose file…</button>
+              </div>
+              <div style="display: flex; gap: 11px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--color-accent-2-100); font-size: 13px; color: var(--color-accent-2-900)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="flex: none"><path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+                <span>Downloads only for content you hold the rights to. Harbor ships no search or indexer — you supply the link.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 12px">
+                <sc-for list="{{ torrents }}" as="t" hint-placeholder-count="3">
+                  <div style="border-radius: var(--radius-lg); background: var(--color-bg); box-shadow: var(--shadow-sm); padding: 16px 18px; display: flex; flex-direction: column; gap: 11px">
+                    <div style="display: flex; align-items: center; gap: 12px">
+                      <span style="flex: 1; font-size: 14px; font-weight: 500; word-break: break-word">{{ t.name }}</span>
+                      <span class="tag {{ t.tagClass }}">{{ t.state }}</span>
+                    </div>
+                    <div style="height: 10px; border-radius: 999px; background: var(--color-neutral-200); position: relative">
+                      <div style="position: absolute; inset: 0 auto 0 0; width: {{ t.pct }}; border-radius: 999px; background: {{ t.barColor }}"></div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 12px; color: var(--color-neutral-700); white-space: nowrap">
+                      <span>{{ t.pct }}</span><span>{{ t.done }}</span><span>↓ {{ t.speed }}</span><span>{{ t.peers }}</span><span>{{ t.eta }}</span>
+                      <div style="flex: 1"></div>
+                      <span style="cursor: pointer; color: var(--color-accent-700); font-weight: 600">Pause</span>
+                      <span style="cursor: pointer; color: var(--color-accent-700); font-weight: 600">Files</span>
+                      <span style="cursor: pointer; color: var(--color-accent-700); font-weight: 600">Show folder</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isDrives }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 18px">
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+                <div style="font-family: var(--font-heading); font-size: 26px; line-height: 1">Connected drives</div>
+                <div style="flex: 1"></div>
+                <button class="btn btn-primary">Connect a drive</button>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 16px">
+                <sc-for list="{{ drives }}" as="d" hint-placeholder-count="6">
+                  <div class="card elev-sm">
+                    <div class="card-kicker">{{ d.provider }}</div>
+                    <div class="card-title">{{ d.account }}</div>
+                    <div class="card-body">{{ d.detail }}</div>
+                    <div style="height: 10px; border-radius: 999px; background: var(--color-neutral-200); position: relative; margin: 16px 0 10px">
+                      <div style="position: absolute; inset: 0 auto 0 0; width: {{ d.usedPct }}; border-radius: 999px; background: {{ d.barColor }}"></div>
+                    </div>
+                    <div class="card-meta"><span>{{ d.used }}</span><span class="tag {{ d.tagClass }}">{{ d.status }}</span></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isTransfers }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+                <div style="font-family: var(--font-heading); font-size: 26px; line-height: 1">Transfers</div>
+                <div style="flex: 1"></div>
+                <button class="btn btn-secondary">Pause all</button>
+                <button class="btn btn-secondary">Clear finished</button>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 12px">
+                <sc-for list="{{ transfers }}" as="x" hint-placeholder-count="4">
+                  <div style="border-radius: var(--radius-lg); background: var(--color-bg); box-shadow: var(--shadow-sm); padding: 16px 18px; display: flex; flex-direction: column; gap: 11px">
+                    <div style="display: flex; align-items: center; gap: 12px; font-size: 14px">
+                      <span style="flex: 1; font-weight: 500; word-break: break-word">{{ x.name }}</span>
+                      <span class="tag tag-outline">{{ x.route }}</span>
+                    </div>
+                    <div style="height: 10px; border-radius: 999px; background: var(--color-neutral-200); position: relative">
+                      <div style="position: absolute; inset: 0 auto 0 0; width: {{ x.pct }}; border-radius: 999px; background: {{ x.barColor }}"></div>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 12px; color: var(--color-neutral-700); white-space: nowrap">
+                      <span>{{ x.pct }}</span><span>{{ x.moved }}</span><span>{{ x.speed }}</span><span>{{ x.state }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 28px; max-width: 620px">
+              <div>
+                <div style="font-family: var(--font-heading); font-size: 24px; line-height: 1; margin-bottom: 14px">Google accounts</div>
+                <div style="display: grid; gap: 14px">
+                  <div class="field"><label>Client ID</label><input class="input" value="8471-harbor.apps.googleusercontent.com" onChange="{{ noop }}" style="border-radius: 999px" /></div>
+                  <div class="field"><label>Client secret</label><input class="input" type="password" value="••••••••••••••" onChange="{{ noop }}" style="border-radius: 999px" /></div>
+                  <div style="font-size: 12.5px; color: var(--color-neutral-700)">Sign-in happens in your browser and tokens stay in the system keychain — never in the interface.</div>
+                </div>
+              </div>
+              <div>
+                <div style="font-family: var(--font-heading); font-size: 24px; line-height: 1; margin-bottom: 14px">Places</div>
+                <div style="display: grid; gap: 14px">
+                  <div class="field"><label>Download folder</label><input class="input" value="/Users/zaki/Downloads" onChange="{{ noop }}" style="border-radius: 999px" /></div>
+                  <div class="field"><label>Drive cache</label><input class="input" value="~/Library/Caches/com.fileexplorer.app" onChange="{{ noop }}" style="border-radius: 999px" /></div>
+                </div>
+              </div>
+              <div>
+                <div style="font-family: var(--font-heading); font-size: 24px; line-height: 1; margin-bottom: 14px">Behaviour</div>
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <sc-for list="{{ toggles }}" as="s" hint-placeholder-count="5">
+                    <div onClick="{{ s.onClick }}" style="display: flex; align-items: center; gap: 14px; cursor: pointer; padding: 12px 16px; border-radius: 999px; background: var(--color-bg)" style-hover="background: var(--color-accent-100)">
+                      <span style="flex: 1; font-size: 13.5px">{{ s.label }}</span>
+                      <span style="width: 40px; height: 22px; border-radius: 999px; background: {{ s.trackBg }}; position: relative; display: block; flex: none">
+                        <i style="position: absolute; top: 3px; left: {{ s.knobLeft }}; width: 16px; height: 16px; border-radius: 50%; background: {{ s.knobBg }}; display: block"></i>
+                      </span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px">
+                <button class="btn btn-primary">Save settings</button>
+                <button class="btn btn-secondary">Revert</button>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <div style="width: 312px; flex: none; overflow-y: auto; padding: 20px 18px 24px; background: var(--color-surface); border-radius: var(--radius-lg)">
+          <div style="font-size: 12px; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 16px">{{ inspectorLabel }}</div>
+
+          <sc-if value="{{ showFileInspector }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 18px">
+              <div class="washed" style="height: 156px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-lg); background: var(--color-accent-100)">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-accent-700)"><path d="{{ sel.d }}"></path></svg>
+              </div>
+              <div>
+                <div style="font-family: var(--font-heading); font-size: 24px; line-height: 1.15; word-break: break-word">{{ sel.name }}</div>
+                <div style="font-size: 13px; color: var(--color-neutral-700); margin-top: 6px">{{ sel.kind }} · {{ sel.size }}</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <sc-for list="{{ selRows }}" as="r" hint-placeholder-count="5">
+                  <div style="display: flex; gap: 12px; font-size: 13px">
+                    <span style="width: 88px; flex: none; color: var(--color-neutral-700)">{{ r.k }}</span>
+                    <span style="flex: 1; word-break: break-word">{{ r.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 9px">
+                <button class="btn btn-primary btn-block" style="margin-top: 0">Open in new tab</button>
+                <button class="btn btn-secondary btn-block" style="margin-top: 0">Copy to local…</button>
+                <button class="btn btn-secondary btn-block" style="margin-top: 0">Reveal in {{ revealIn }}</button>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showContextInspector }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <sc-for list="{{ contextRows }}" as="r" hint-placeholder-count="4">
+                <div style="display: flex; gap: 12px; font-size: 13px">
+                  <span style="width: 88px; flex: none; color: var(--color-neutral-700)">{{ r.k }}</span>
+                  <span style="flex: 1; word-break: break-word">{{ r.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 40px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 22px; font-size: 12.5px; color: var(--color-neutral-700)">
+    <span>{{ statusLeft }}</span>
+    <span>1.2 TB free of 2 TB</span>
+    <div style="flex: 1"></div>
+    <span onClick="{{ goTransfers }}" style="cursor: pointer; color: var(--color-accent-700); font-weight: 600">2 transfers · 41%</span>
+    <span onClick="{{ goTorrents }}" style="cursor: pointer; color: var(--color-accent-700); font-weight: 600">1 torrent · ↓ 6.2 MB/s</span>
+    <span>All drives synced 2 min ago</span>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;\&quot;light\&quot; | \&quot;dark\&quot;&quot;,&quot;section&quot;:&quot;Appearance&quot;}}">
+const ICON = {
+  home: "M3 10.5 12 3l9 7.5V21H3z",
+  folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  download: "M12 3v12m-5-5 5 5 5-5M4 21h16",
+  image: "M3 4h18v16H3zM3 16l5-5 4 4 3-3 6 6",
+  music: "M9 18V5l10-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0m10-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
+  film: "M3 4h18v16H3zM7 4v16M17 4v16M3 10h18M3 14h18",
+  disk: "M4 5h16v14H4zM8 9h8v6H8z",
+  cloud: "M6 18a4 4 0 0 1 .6-7.96A5.5 5.5 0 0 1 17.5 10a3.5 3.5 0 0 1 .5 6.97z",
+  net: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3 12h18M12 3c3 3.5 3 14 0 18",
+  bucket: "M4 6h16l-2 13H6zM4 6c0-1.7 3.6-3 8-3s8 1.3 8 3",
+  magnet: "M6 4v8a6 6 0 0 0 12 0V4h-4v8a2 2 0 0 1-4 0V4z",
+  arrows: "M4 8h13l-3-3m6 11H7l3 3",
+  gear: "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7.5 19.7l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.7 8.5l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 10 4.6V4a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z",
+  globe: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M3.6 9h16.8M3.6 15h16.8M12 3c2.6 3.6 2.6 14.4 0 18M12 3c-2.6 3.6-2.6 14.4 0 18",
+  doc: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4",
+  file: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5",
+  code: "m9 18-6-6 6-6m6 0 6 6-6 6",
+};
+
+const FILES = [
+  { name: "Site_Photos", kind: "Folder", ext: "248 items", size: "—", modified: "Aug 11, 14:02", src: "Local", icon: "folder" },
+  { name: "Reel_04.mov", kind: "QuickTime movie", ext: "MOV", size: "1.42 GB", modified: "Aug 12, 09:31", src: "Local", icon: "film" },
+  { name: "Q3_Report.pdf", kind: "PDF document", ext: "PDF", size: "3.8 MB", modified: "Aug 13, 18:20", src: "Drive · zaki@", icon: "doc" },
+  { name: "Wallpaper_04.png", kind: "PNG image", ext: "PNG", size: "6.1 MB", modified: "Aug 09, 21:14", src: "Local", icon: "image" },
+  { name: "Interview_raw.wav", kind: "Audio", ext: "WAV", size: "412 MB", modified: "Aug 07, 11:48", src: "Drive · studio@", icon: "music" },
+  { name: "Contract_signed.pdf", kind: "PDF document", ext: "PDF", size: "740 KB", modified: "Aug 06, 08:05", src: "Dropbox", icon: "doc" },
+  { name: "Archive_2025.zip", kind: "Archive", ext: "ZIP", size: "18.4 GB", modified: "Jul 30, 16:22", src: "SanDisk 2TB", icon: "file" },
+  { name: "harbor_notes.md", kind: "Markdown", ext: "MD", size: "12 KB", modified: "Aug 14, 07:10", src: "Local", icon: "code" },
+  { name: "Client_Brief", kind: "Folder", ext: "31 items", size: "—", modified: "Aug 03, 13:37", src: "OneDrive", icon: "folder" },
+  { name: "Launch_cut.mkv", kind: "Matroska video", ext: "MKV", size: "8.9 GB", modified: "Aug 12, 22:04", src: "Local", icon: "film" },
+  { name: "Renders", kind: "Folder", ext: "1,204 items", size: "—", modified: "Aug 14, 06:55", src: "S3 · harbor-cold", icon: "folder" },
+  { name: "Soundtrack.flac", kind: "Audio", ext: "FLAC", size: "96 MB", modified: "Jul 28, 19:11", src: "iCloud Drive", icon: "music" },
+];
+
+const TABS = [
+  { id: "files", title: "Documents", kind: "files", icon: "folder" },
+  { id: "video", title: "Reel_04.mov", kind: "video", icon: "film" },
+  { id: "pdf", title: "Q3_Report.pdf", kind: "doc", icon: "doc" },
+  { id: "image", title: "Wallpaper_04.png", kind: "doc", icon: "image" },
+  { id: "web", title: "lucide.dev", kind: "web", icon: "globe" },
+  { id: "torrents", title: "Downloads", kind: "torrents", icon: "magnet" },
+  { id: "drives", title: "Drives", kind: "drives", icon: "cloud" },
+  { id: "transfers", title: "Transfers", kind: "transfers", icon: "arrows" },
+  { id: "settings", title: "Settings", kind: "settings", icon: "gear" },
+];
+
+class Component extends DCLogic {
+  state = {
+    theme: null,
+    tab: "files",
+    view: "grid",
+    sel: 1,
+    filter: "",
+    playing: true,
+    pct: 38,
+    magnet: "",
+    place: "Documents",
+    toggles: { hidden: false, trash: true, external: true, seed: false, thumbs: true },
+  };
+
+  tab() { return TABS.find(t => t.id === this.state.tab) || TABS[0]; }
+  go = id => this.setState({ tab: id });
+
+  sidebar() {
+    return [
+      { label: "Places", hint: "Local", items: [
+        { name: "Home", icon: "home", badge: "" },
+        { name: "Desktop", icon: "folder", badge: "" },
+        { name: "Documents", icon: "folder", badge: "12" },
+        { name: "Downloads", icon: "download", badge: "3" },
+        { name: "Pictures", icon: "image", badge: "" },
+        { name: "Music", icon: "music", badge: "" },
+        { name: "Movies", icon: "film", badge: "" },
+      ]},
+      { label: "Volumes", hint: "2", items: [
+        { name: "Macintosh HD", icon: "disk", badge: "" },
+        { name: "SanDisk 2TB", icon: "disk", badge: "Ext" },
+      ]},
+      { label: "Cloud drives", hint: "7", items: [
+        { name: "zaki@gmail.com", icon: "cloud", badge: "Drive", tab: "drives" },
+        { name: "studio@harbor.co", icon: "cloud", badge: "Drive", tab: "drives" },
+        { name: "Dropbox", icon: "cloud", badge: "", tab: "drives" },
+        { name: "OneDrive", icon: "cloud", badge: "", tab: "drives" },
+        { name: "iCloud Drive", icon: "cloud", badge: "", tab: "drives" },
+        { name: "harbor-cold", icon: "bucket", badge: "S3", tab: "drives" },
+        { name: "nas.local/media", icon: "net", badge: "SMB", tab: "drives" },
+      ]},
+      { label: "Activity", hint: "", items: [
+        { name: "Torrents", icon: "magnet", badge: "1", tab: "torrents" },
+        { name: "Transfers", icon: "arrows", badge: "2", tab: "transfers" },
+        { name: "Settings", icon: "gear", badge: "", tab: "settings" },
+      ]},
+    ];
+  }
+
+  renderVals() {
+    const s = this.state, tab = this.tab(), k = tab.kind;
+    const q = s.filter.trim().toLowerCase();
+    const files = FILES.filter(f => !q || f.name.toLowerCase().includes(q));
+    const sel = FILES[s.sel] || FILES[0];
+
+    const groups = this.sidebar().map(g => ({
+      label: g.label, hint: g.hint,
+      items: g.items.map(it => {
+        const active = (it.tab && it.tab === s.tab) || (!it.tab && k === "files" && it.name === s.place);
+        return {
+          name: it.name, badge: it.badge, d: ICON[it.icon],
+          bg: active ? "var(--color-accent-200)" : "transparent",
+          fg: active ? "var(--color-accent-900)" : "var(--color-neutral-800)",
+          iconFg: active ? "var(--color-accent-700)" : "var(--color-neutral-600)",
+          weight: active ? "600" : "400",
+          onClick: () => it.tab ? this.go(it.tab) : this.setState({ tab: "files", place: it.name, filter: "" }),
+        };
+      }),
+    }));
+
+    const tabs = TABS.map(t => {
+      const active = t.id === s.tab;
+      return {
+        title: t.title, d: ICON[t.icon], onClick: () => this.go(t.id),
+        bg: active ? "var(--color-accent)" : "var(--color-surface)",
+        shadow: active ? "var(--shadow-sm)" : "none",
+        fg: active ? "var(--color-bg)" : "var(--color-neutral-800)",
+        iconFg: active ? "var(--color-bg)" : "var(--color-neutral-600)",
+        closeFg: active ? "color-mix(in srgb, var(--color-bg) 70%, transparent)" : "var(--color-neutral-500)",
+        weight: active ? "600" : "400",
+      };
+    });
+
+    const fileRows = files.map(f => {
+      const i = FILES.indexOf(f), active = i === s.sel;
+      return {
+        name: f.name, kind: f.kind, ext: f.ext, size: f.size, modified: f.modified,
+        src: f.src, d: ICON[f.icon],
+        srcFg: f.src === "Local" ? "var(--color-neutral-700)" : "var(--color-accent-2-700)",
+        bg: active ? "var(--color-accent-200)" : "var(--color-bg)",
+        rowBg: active ? "var(--color-accent-100)" : "transparent",
+        shadow: active ? "var(--shadow-md)" : "var(--shadow-sm)",
+        thumbBg: active ? "var(--color-accent-100)" : "var(--color-neutral-200)",
+        iconFg: active ? "var(--color-accent-700)" : "var(--color-neutral-700)",
+        onClick: () => this.setState({ sel: i }),
+      };
+    });
+
+    const contextByKind = {
+      video: [
+        { k: "Container", v: "QuickTime / ProRes 422" }, { k: "Resolution", v: "3840 × 2160 · 24 fps" },
+        { k: "Audio", v: "2 ch · 48 kHz" }, { k: "Subtitles", v: "Reel_04.en.srt" },
+        { k: "Playlist", v: "3 of 7 in Site_Photos" }, { k: "Fallback", v: "IINA · mpv · VLC" },
+      ],
+      doc: [
+        { k: "Pages", v: s.tab === "pdf" ? "24" : "1" }, { k: "Size", v: s.tab === "pdf" ? "3.8 MB" : "6.1 MB" },
+        { k: "Source", v: s.tab === "pdf" ? "Drive · zaki@gmail.com" : "Local" },
+        { k: "Cached", v: "2 min ago" },
+      ],
+      web: [
+        { k: "URL", v: "https://lucide.dev/icons" }, { k: "Engine", v: "Native webview" },
+        { k: "Profile", v: "Harbor · isolated cookies" }, { k: "Bookmarks", v: "4 saved" },
+      ],
+      torrents: [
+        { k: "Session", v: "Persisted across restarts" }, { k: "Down cap", v: "Unlimited" },
+        { k: "Up cap", v: "1 MB/s" }, { k: "Seeding", v: "Off after completion" },
+        { k: "Save to", v: "/Users/zaki/Downloads" },
+      ],
+      drives: [
+        { k: "Accounts", v: "7 connected" }, { k: "Auth", v: "Browser sign-in · keychain" },
+        { k: "Poll", v: "Every 60 s" }, { k: "Conflicts", v: "None" },
+      ],
+      transfers: [
+        { k: "Active", v: "2" }, { k: "Queued", v: "1" }, { k: "Done today", v: "18 · 42.6 GB" },
+        { k: "Streams", v: "3 at a time" },
+      ],
+      settings: [
+        { k: "Version", v: "Harbor 0.4.1" }, { k: "Bundle", v: "com.fileexplorer.app" },
+        { k: "Shell", v: "Tauri 2 · Rust 1.86" }, { k: "Config", v: "~/…/settings.json" },
+      ],
+    };
+
+    const toggleDefs = [
+      { key: "hidden", label: "Show hidden files" },
+      { key: "trash", label: "Move to Trash instead of deleting" },
+      { key: "external", label: "Hand unsupported codecs to system player" },
+      { key: "seed", label: "Keep seeding after a torrent finishes" },
+      { key: "thumbs", label: "Generate video thumbnails" },
+    ];
+
+    const crumbMap = {
+      files: "Macintosh HD  ›  Users  ›  zaki  ›  " + s.place,
+      video: "Macintosh HD  ›  Users  ›  zaki  ›  Documents  ›  Reel_04.mov",
+      pdf: "Drive · zaki@gmail.com  ›  Reports  ›  Q3_Report.pdf",
+      image: "Macintosh HD  ›  Users  ›  zaki  ›  Pictures  ›  Wallpaper_04.png",
+      web: "https://lucide.dev/icons",
+      torrents: "Torrents  ›  /Users/zaki/Downloads",
+      drives: "Drives  ›  All accounts",
+      transfers: "Transfers  ›  Queue",
+      settings: "Settings  ›  General",
+    };
+
+    const secs = Math.round(252 * s.pct / 100);
+    const mm = String(Math.floor(secs / 60)).padStart(2, "0");
+    const ss = String(secs % 60).padStart(2, "0");
+
+    const theme = s.theme || this.props.theme || "light";
+    const dark = theme === "dark";
+
+    return {
+      theme,
+      themeLabel: dark ? "Dark" : "Light",
+      themeIcon: dark
+        ? "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9"
+        : "M12 4V2m0 20v-2m8-8h2M2 12h2m13.7-5.7 1.4-1.4M4.9 19.1l1.4-1.4m11.4 0 1.4 1.4M4.9 4.9l1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
+      toggleTheme: () => this.setState({ theme: dark ? "light" : "dark" }),
+      groups, tabs, files: fileRows,
+      crumbs: crumbMap[s.tab] || "",
+      filter: s.filter,
+      onFilter: e => this.setState({ filter: e.target.value }),
+      noop: () => {},
+      isGrid: s.view === "grid", isList: s.view === "list",
+      setGrid: () => this.setState({ view: "grid" }), setList: () => this.setState({ view: "list" }),
+      gridBg: s.view === "grid" ? "var(--color-accent)" : "transparent",
+      gridFg: s.view === "grid" ? "var(--color-bg)" : "var(--color-text)",
+      listBg: s.view === "list" ? "var(--color-accent)" : "transparent",
+      listFg: s.view === "list" ? "var(--color-bg)" : "var(--color-text)",
+
+      isFiles: k === "files", isVideo: k === "video", isDoc: k === "doc",
+      isWeb: k === "web", isTorrents: k === "torrents", isDrives: k === "drives",
+      isTransfers: k === "transfers", isSettings: k === "settings",
+
+      showToolbarAux: k !== "files",
+      toolbarAux: {
+        video: "24 fps · hardware decode", doc: s.tab === "pdf" ? "24 pages" : "5120 × 2880",
+        web: "Native webview", torrents: "1 active", drives: "7 accounts",
+        transfers: "2 active · 1 queued", settings: "Harbor 0.4.1",
+      }[k] || "",
+
+      resultLabel: q ? "Search results" : s.place,
+      resultCount: q ? files.length + " of " + FILES.length + " match “" + s.filter + "”" : FILES.length + " items across 4 sources",
+
+      elapsed: mm + ":" + ss,
+      pctText: s.pct + "%",
+      playLabel: s.playing ? "Pause" : "Play",
+      togglePlay: () => this.setState({ playing: !s.playing }),
+      scrub: e => {
+        const r = e.currentTarget.getBoundingClientRect();
+        this.setState({ pct: Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 100))) });
+      },
+
+      docTitle: s.tab === "pdf" ? "Q3_Report.pdf — page 3 of 24" : "Wallpaper_04.png — 5120 × 2880",
+      docNote: s.tab === "pdf" ? "Page renders through the embedded PDF view" : "Image renders at native resolution, washed here as a placeholder",
+
+      magnet: s.magnet,
+      onMagnet: e => this.setState({ magnet: e.target.value }),
+      torrents: [
+        { name: "blender-open-movie-4k-2025.torrent", state: "Downloading", tagClass: "tag-accent", barColor: "var(--color-accent)", pct: "62%", done: "4.2 of 6.8 GB", speed: "6.2 MB/s", peers: "38 peers", eta: "7 min left" },
+        { name: "public-domain-film-archive-vol3", state: "Seeding", tagClass: "tag-accent-2", barColor: "var(--color-accent-2)", pct: "100%", done: "12.4 GB", speed: "0 B/s", peers: "11 peers", eta: "Complete" },
+        { name: "linux-mint-22.1-cinnamon.iso", state: "Paused", tagClass: "tag-neutral", barColor: "var(--color-neutral-400)", pct: "18%", done: "540 MB of 3.0 GB", speed: "0 B/s", peers: "0 peers", eta: "Paused" },
+      ],
+      drives: [
+        { provider: "Google Drive", account: "zaki@gmail.com", detail: "Primary account. Browse, download and paste into local folders.", used: "48.2 of 100 GB", usedPct: "48%", status: "Synced", tagClass: "tag-accent-2", barColor: "var(--color-accent)" },
+        { provider: "Google Drive", account: "studio@harbor.co", detail: "Shared drives included. Docs export as PDF on download.", used: "1.4 of 2 TB", usedPct: "70%", status: "Synced", tagClass: "tag-accent-2", barColor: "var(--color-accent)" },
+        { provider: "Dropbox", account: "zaki.personal", detail: "Connected directly; selective folders mounted.", used: "610 GB of 2 TB", usedPct: "31%", status: "Synced", tagClass: "tag-accent-2", barColor: "var(--color-accent)" },
+        { provider: "OneDrive", account: "zaki@outlook.com", detail: "Client_Brief and Invoices mounted.", used: "180 of 1024 GB", usedPct: "18%", status: "Indexing", tagClass: "tag-accent", barColor: "var(--color-accent)" },
+        { provider: "iCloud Drive", account: "Apple ID · zaki", detail: "Local sync folder, no API calls.", used: "92 of 200 GB", usedPct: "46%", status: "Synced", tagClass: "tag-accent-2", barColor: "var(--color-accent)" },
+        { provider: "S3 compatible", account: "harbor-cold", detail: "eu-central-1 · access key auth · cold archive.", used: "8.1 TB", usedPct: "82%", status: "Connected", tagClass: "tag-outline", barColor: "var(--color-accent-2)" },
+        { provider: "SMB share", account: "nas.local/media", detail: "Mounted at /Volumes/media on login.", used: "14 of 24 TB", usedPct: "58%", status: "Mounted", tagClass: "tag-outline", barColor: "var(--color-accent-2)" },
+      ],
+      transfers: [
+        { name: "Q3_Report.pdf", route: "Drive → Local", pct: "100%", moved: "3.8 MB", speed: "—", state: "Done", barColor: "var(--color-accent-2)" },
+        { name: "Renders/scene_14/ (412 files)", route: "S3 → Local", pct: "41%", moved: "9.2 of 22.4 GB", speed: "31 MB/s", state: "Copying", barColor: "var(--color-accent)" },
+        { name: "Interview_raw.wav", route: "Drive → SanDisk 2TB", pct: "76%", moved: "313 of 412 MB", speed: "18 MB/s", state: "Moving", barColor: "var(--color-accent)" },
+        { name: "Client_Brief/", route: "OneDrive → Local", pct: "0%", moved: "0 of 1.2 GB", speed: "—", state: "Queued", barColor: "var(--color-neutral-400)" },
+      ],
+      toggles: toggleDefs.map(t => ({
+        label: t.label,
+        trackBg: s.toggles[t.key] ? "var(--color-accent)" : "var(--color-neutral-300)",
+        knobBg: s.toggles[t.key] ? "var(--color-bg)" : "var(--color-neutral-100)",
+        knobLeft: s.toggles[t.key] ? "21px" : "3px",
+        onClick: () => this.setState({ toggles: Object.assign({}, s.toggles, { [t.key]: !s.toggles[t.key] }) }),
+      })),
+
+      inspectorLabel: k === "files" ? "Details" : tab.title,
+      showFileInspector: k === "files",
+      showContextInspector: k !== "files",
+      contextRows: contextByKind[k] || [],
+      sel: { name: sel.name, kind: sel.kind, size: sel.size, d: ICON[sel.icon] },
+      selRows: [
+        { k: "Kind", v: sel.kind }, { k: "Size", v: sel.size }, { k: "Modified", v: sel.modified },
+        { k: "Source", v: sel.src }, { k: "Path", v: "/Users/zaki/Documents/" + sel.name },
+        { k: "Opens in", v: sel.kind.includes("movie") || sel.kind === "Audio" ? "Media tab" : sel.kind.includes("PDF") ? "Document tab" : "System app" },
+      ],
+      revealIn: sel.src === "Local" ? "Finder" : "source drive",
+      statusLeft: k === "files" ? files.length + " items shown · 1 selected" : tab.title,
+      goTransfers: () => this.go("transfers"),
+      goTorrents: () => this.go("torrents"),
+    };
+  }
+}
+</script>
+</body>
+</html>
