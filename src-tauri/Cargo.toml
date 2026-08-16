@@ -1,6 +1,6 @@
 [package]
 name = "depot"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cross-platform file explorer with cloud drives, media tabs, and legal torrent downloads"
 authors = ["Syed Zakiuddin"]
 license = "MIT"

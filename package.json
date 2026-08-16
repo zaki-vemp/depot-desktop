@@ -1,7 +1,7 @@
 {
   "name": "depot",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-platform desktop file explorer with cloud drives, media tabs, and legal torrent downloads",
   "license": "MIT",
   "author": "Syed Zakiuddin",
