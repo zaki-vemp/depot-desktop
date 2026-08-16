@@ -287,6 +287,8 @@ fn clip(s: &str) -> String {
 }
 
 fn preview_via_textutil(path: &str, kind: &str) -> Result<OfficePreview, String> {
+    #[cfg(not(target_os = "macos"))]
+    let _ = path;
     #[cfg(target_os = "macos")]
     {
         let out = std::process::Command::new("textutil")

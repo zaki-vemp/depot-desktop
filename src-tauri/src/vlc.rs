@@ -519,7 +519,12 @@ fn attach_drawable(api: &Api, player: *mut c_void, platform: &tauri::webview::Pl
 #[cfg(windows)]
 fn windows_hwnd(platform: &tauri::webview::PlatformWebview) -> Option<*mut c_void> {
     let controller = platform.controller();
-    unsafe { controller.ParentWindow().ok().map(|hwnd| hwnd.0 as *mut c_void) }
+    unsafe {
+        let mut hwnd = std::mem::zeroed();
+        controller.ParentWindow(&mut hwnd).ok()?;
+        let raw = hwnd.0 as *mut c_void;
+        (!raw.is_null()).then_some(raw)
+    }
 }
 
 #[cfg(any(
@@ -530,11 +535,13 @@ fn windows_hwnd(platform: &tauri::webview::PlatformWebview) -> Option<*mut c_voi
     target_os = "openbsd"
 ))]
 fn linux_xid(platform: &tauri::webview::PlatformWebview) -> Option<u32> {
-    use gtk::prelude::WidgetExt;
     let widget = platform.inner();
-    let window = widget.window()?;
-    let ptr = glib::translate::ToGlibPtr::to_glib_none(&window).0;
-    let xid = unsafe { gdk_x11_window_get_xid(ptr as *mut c_void) };
+    let widget_ptr = widget.as_ptr() as *mut c_void;
+    let window_ptr = unsafe { gtk_widget_get_window(widget_ptr) };
+    if window_ptr.is_null() {
+        return None;
+    }
+    let xid = unsafe { gdk_x11_window_get_xid(window_ptr) };
     (xid != 0).then_some(xid as u32)
 }
 
@@ -546,6 +553,7 @@ fn linux_xid(platform: &tauri::webview::PlatformWebview) -> Option<u32> {
     target_os = "openbsd"
 ))]
 extern "C" {
+    fn gtk_widget_get_window(widget: *mut c_void) -> *mut c_void;
     fn gdk_x11_window_get_xid(window: *mut c_void) -> u64;
 }
 
