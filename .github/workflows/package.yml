@@ -15,10 +15,45 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # linuxdeploy ships as an AppImage, and the runners have no FUSE. Extracting
+  # instead of mounting is what keeps the AppImage bundler working in CI.
+  APPIMAGE_EXTRACT_AND_RUN: 1
+
 jobs:
-  build-linux:
-    name: Linux
-    runs-on: ubuntu-22.04
+  package:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # One platform failing should not hide working installers for the others.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86_64
+            runner: ubuntu-24.04
+            artifact: depot-linux-x86_64
+            bundles: deb,rpm,appimage
+            rust-targets: ""
+            tauri-args: ""
+          - name: macOS Apple Silicon
+            runner: macos-latest
+            artifact: depot-macos-aarch64
+            bundles: dmg
+            rust-targets: aarch64-apple-darwin
+            tauri-args: --target aarch64-apple-darwin
+          - name: macOS Intel
+            runner: macos-latest
+            artifact: depot-macos-x86_64
+            bundles: dmg
+            rust-targets: x86_64-apple-darwin
+            tauri-args: --target x86_64-apple-darwin
+          - name: Windows x86_64
+            runner: windows-latest
+            artifact: depot-windows-x86_64
+            bundles: nsis,msi
+            rust-targets: ""
+            tauri-args: ""
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,106 +63,162 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: linux
+          key: ${{ matrix.artifact }}
 
-      - name: Install system dependencies
+      # Ubuntu 24.04 dropped libappindicator3-dev; libayatana-appindicator3-dev
+      # is the replacement. `rpm` provides the rpmbuild the .rpm bundler shells out to.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
             libgtk-3-dev \
-            libappindicator3-dev \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
             libxdo-dev \
-            libssl-dev
+            libssl-dev \
+            rpm
 
-      - name: Build it
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build installers
+        run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.tauri-args }}
+
+      # Flatten every bundle into one directory so the artifact has no nested
+      # target/<triple>/release/bundle/... path for people to click through.
+      - name: Collect installers
+        shell: bash
         run: |
-          npm ci
-          npx tauri build --bundles deb
+          set -euo pipefail
+          mkdir -p release
+          # Anything under a bundle/ directory is a distributable; the bare
+          # target/release/depot binary is not, so scope the search to bundle/.
+          find src-tauri/target -path '*/bundle/*' -type f \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
+               -o -name '*.dmg' -o -name '*.exe' -o -name '*.msi' \) \
+            -exec cp {} release/ \;
+          ls -lh release
+
+      - name: Report installers in run summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(ls -A release 2>/dev/null || true)" ]; then
+            echo "### ${{ matrix.name }} — no installers produced" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=${{ matrix.name }}::Build produced no installer files"
+            exit 0
+          fi
+
+          {
+            echo "### ${{ matrix.name }}"
+            echo ""
+            echo "| Installer | Size | SHA-256 |"
+            echo "| --- | ---: | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for file in release/*; do
+            filename=$(basename "$file")
+            bytes=$(wc -c < "$file" | tr -d '[:space:]')
+            size=$(awk "BEGIN { printf \"%.1f MB\", $bytes / 1048576 }")
+
+            # sha256sum on Linux and Git Bash, shasum on macOS.
+            if command -v sha256sum >/dev/null 2>&1; then
+              checksum=$(sha256sum "$file" | cut -d' ' -f1)
+            else
+              checksum=$(shasum -a 256 "$file" | cut -d' ' -f1)
+            fi
+
+            echo "| \`$filename\` | $size | \`${checksum:0:16}…\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=${{ matrix.name }} installer::$filename — $size — sha256:$checksum"
+          done
+
+          {
+            echo ""
+            echo "Download via the \`${{ matrix.artifact }}\` artifact on this run."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-binaries
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/*/release/bundle/deb/*.deb
+          name: ${{ matrix.artifact }}
+          path: release/*
           if-no-files-found: error
+          retention-days: 30
 
-  build-mac:
-    name: macOS
-    runs-on: macos-latest
+  summary:
+    name: Summary
+    needs: package
+    if: always()
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      # Tolerate a run where every platform failed, so the summary below still renders.
+      - name: Download all installers
+        uses: actions/download-artifact@v4
+        continue-on-error: true
         with:
-          node-version: 20
-          cache: npm
+          path: artifacts
+          merge-multiple: true
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          key: macos
-
-      - name: Build it
+      - name: Write combined summary
+        shell: bash
         run: |
-          npm ci
-          npx tauri build --bundles dmg
+          set -euo pipefail
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-binaries
-          path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/*/release/bundle/dmg/*.dmg
-          if-no-files-found: error
+          {
+            echo "## Depot installers"
+            echo ""
+            echo "Commit \`${GITHUB_SHA:0:7}\` on \`${GITHUB_REF_NAME}\`"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  build-windows:
-    name: Windows
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
+          if [ -z "$(ls -A artifacts 2>/dev/null || true)" ]; then
+            echo "No installers were produced — every platform job failed." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+          {
+            echo "| Platform | Installer | Size |"
+            echo "| --- | --- | ---: |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: dtolnay/rust-toolchain@stable
+          for file in artifacts/*; do
+            filename=$(basename "$file")
+            bytes=$(wc -c < "$file" | tr -d '[:space:]')
+            size=$(awk "BEGIN { printf \"%.1f MB\", $bytes / 1048576 }")
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          key: windows
+            case "$filename" in
+              *.deb)      platform="Ubuntu / Debian" ;;
+              *.rpm)      platform="Fedora / RHEL" ;;
+              *.AppImage) platform="Linux (portable)" ;;
+              *aarch64*.dmg) platform="macOS (Apple Silicon)" ;;
+              *x64*.dmg|*x86_64*.dmg) platform="macOS (Intel)" ;;
+              *.dmg)      platform="macOS" ;;
+              *.exe)      platform="Windows (installer)" ;;
+              *.msi)      platform="Windows (MSI)" ;;
+              *)          platform="Other" ;;
+            esac
 
-      - name: Build it
-        run: |
-          npm ci
-          npx tauri build --bundles nsis
+            echo "| $platform | \`$filename\` | $size |" >> "$GITHUB_STEP_SUMMARY"
+          done
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-binaries
-          path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/*/release/bundle/nsis/*.exe
-          if-no-files-found: error
-
-  create-release:
+  release:
     name: Create Release
-    needs: [build-linux, build-mac, build-windows]
+    needs: package
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:
-      - name: Download all artifacts
+      - name: Download all installers
         uses: actions/download-artifact@v4
         with:
           path: artifacts
