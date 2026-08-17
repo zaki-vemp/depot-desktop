@@ -1,18 +1,31 @@
 /**
- * The agent chat panel.
+ * The coding-agent chat panel.
  *
- * Depot is not an AI client: it runs whichever coding-agent CLI the user
- * already has installed and signed in, in that tool's non-interactive mode,
- * and streams its output here. No API key ever passes through Depot.
+ * Depot is not an AI client: it runs whichever agent CLI the user already has
+ * installed and signed in — Claude Code, Codex, Gemini, Copilot, opencode — in
+ * that tool's non-interactive mode, and renders its structured event stream:
+ * thinking, replies, and every tool call as it happens. No API key ever passes
+ * through Depot.
+ *
+ * Turns continue the same conversation until "New conversation" is pressed, so
+ * follow-ups do not start the agent cold.
  *
  * A checkpoint of the workspace is taken before every run, so each file the
  * agent touched can be kept or put back individually — the whole reason it is
  * safe to let a CLI edit files unattended.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, onAgentDone, onAgentOut } from "../api";
+import { api, onAgentDone, onAgentEvent } from "../api";
 import { Icon } from "../lib/icons";
-import type { AgentChange, AgentPreset, ChatMessage } from "../types";
+import type { IconName } from "../lib/icons";
+import type {
+  AgentChange,
+  AgentEvent,
+  ChatMessage,
+  ChatPart,
+  EngineDoctor,
+  EngineStatus,
+} from "../types";
 
 const uid = () => `run-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`;
 
@@ -22,10 +35,263 @@ const KIND_MARK: Record<AgentChange["kind"], { letter: string; tone: string }> =
   deleted: { letter: "D", tone: "del" },
 };
 
-/** Strips ANSI escapes that survive `NO_COLOR` in some CLIs. */
-// eslint-disable-next-line no-control-regex
-const ANSI = /\[[0-9;?]*[A-Za-z]|\][^]*/g;
-const clean = (line: string) => line.replace(ANSI, "");
+const TOOL_ICON: Record<string, IconName> = {
+  Edit: "edit",
+  MultiEdit: "edit",
+  NotebookEdit: "edit",
+  Write: "edit",
+  Read: "doc",
+  Bash: "terminal",
+  Grep: "search",
+  Glob: "search",
+  LS: "folder",
+  Task: "sparkle",
+  TodoWrite: "list",
+  WebFetch: "globe",
+  WebSearch: "globe",
+};
+
+/**
+ * Suggestions, not a closed list — the field is free text, so a model released
+ * after this build still works. Engines with no well-known aliases get none.
+ */
+const MODEL_HINTS: Record<string, string[]> = {
+  claude: ["sonnet", "opus", "haiku", "fable"],
+};
+
+const EFFORTS: Array<{ value: string; label: string }> = [
+  { value: "default", label: "Effort: default" },
+  { value: "low", label: "Low effort" },
+  { value: "medium", label: "Medium effort" },
+  { value: "high", label: "High effort" },
+  { value: "xhigh", label: "Extra high effort" },
+  { value: "max", label: "Max effort" },
+];
+
+type Mode = { value: string; label: string; note: string };
+
+const CLAUDE_MODES: Mode[] = [
+  {
+    value: "acceptEdits",
+    label: "Accept edits",
+    note: "File edits are applied automatically; a checkpoint is taken first, so anything can be reverted.",
+  },
+  {
+    value: "auto",
+    label: "Auto",
+    note: "The agent decides which tools need approval. Anything it cannot approve stays blocked.",
+  },
+  {
+    value: "plan",
+    label: "Plan only",
+    note: "The agent proposes a plan without changing any files.",
+  },
+  {
+    value: "bypassPermissions",
+    label: "Bypass permissions",
+    note: "Every tool runs without asking, including shell commands. Checkpoints still cover file edits.",
+  },
+];
+
+/** Codex has no approval prompt in `exec` mode, so the choice sets the sandbox. */
+const CODEX_MODES: Mode[] = [
+  {
+    value: "acceptEdits",
+    label: "Accept edits",
+    note: "Codex may write inside this folder. A checkpoint is taken first, so anything can be reverted.",
+  },
+  {
+    value: "plan",
+    label: "Plan only",
+    note: "Read-only sandbox: Codex can look around and plan, but cannot change files.",
+  },
+  {
+    value: "bypassPermissions",
+    label: "Bypass sandbox",
+    note: "No sandbox and no approvals, including network and writes outside this folder.",
+  },
+];
+
+function modesFor(engine: string): Mode[] {
+  if (engine === "claude") return CLAUDE_MODES;
+  if (engine === "codex") return CODEX_MODES;
+  return [];
+}
+
+/** "claude-sonnet-4-5" → "sonnet-4-5". */
+const shortModel = (model: string) => model.replace(/^claude-/, "");
+
+/** Folds one streamed event into the turn it belongs to. */
+function applyEvent(m: ChatMessage, e: AgentEvent): ChatMessage {
+  if (m.id !== e.id) return m;
+  const parts = [...(m.parts ?? [])];
+  switch (e.kind) {
+    case "init":
+      return { ...m, model: e.model };
+    case "text": {
+      const last = parts[parts.length - 1];
+      if (last?.kind === "text") parts[parts.length - 1] = { ...last, text: last.text + e.text };
+      else parts.push({ kind: "text", text: e.text });
+      return { ...m, parts };
+    }
+    case "thinking": {
+      const last = parts[parts.length - 1];
+      if (last?.kind === "thinking") parts[parts.length - 1] = { ...last, text: last.text + e.text };
+      else parts.push({ kind: "thinking", text: e.text });
+      return { ...m, parts };
+    }
+    case "tool":
+      parts.push({
+        kind: "tool",
+        toolId: e.toolId,
+        name: e.name,
+        summary: e.summary,
+        detail: e.detail,
+        added: e.added,
+        removed: e.removed,
+        done: false,
+        isError: false,
+      });
+      return { ...m, parts };
+    case "toolDone": {
+      const i = parts.findIndex((p) => p.kind === "tool" && p.toolId === e.toolId);
+      const p = i >= 0 ? parts[i] : undefined;
+      if (p?.kind === "tool") parts[i] = { ...p, done: true, isError: e.isError };
+      return { ...m, parts };
+    }
+    case "auth":
+      // The CLI is installed but not signed in here; the banner carries the fix.
+      return { ...m, auth: e, failed: true };
+    case "log":
+      return { ...m, logs: m.logs ? `${m.logs}\n${e.text}` : e.text };
+    case "result": {
+      const bits: string[] = [];
+      if (e.durationMs != null) bits.push(`${(e.durationMs / 1000).toFixed(1)}s`);
+      if (e.turns != null) bits.push(`${e.turns} turn${e.turns === 1 ? "" : "s"}`);
+      if (e.costUsd != null) bits.push(`$${e.costUsd.toFixed(4)}`);
+      // If nothing streamed (older CLI), the final result is the reply.
+      const hasText = parts.some((p) => p.kind === "text" && p.text.trim());
+      // An auth banner already says it better than the raw message would.
+      if (e.text.trim() && !hasText && !m.auth) parts.push({ kind: "text", text: e.text });
+      return {
+        ...m,
+        parts,
+        meta: bits.join(" · ") || undefined,
+        failed: e.isError || m.failed,
+      };
+    }
+
+    default:
+      return m;
+  }
+}
+
+/** Collapsible chain-of-thought: open while it streams, folded afterwards. */
+function ThinkingBlock({ text, live }: { text: string; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const expanded = open || live;
+  return (
+    <div className="agent-thinking">
+      <button className="agent-thinking-head" onClick={() => setOpen((v) => !v)}>
+        <Icon name={expanded ? "chevronDown" : "chevronRight"} size={11} />
+        {live ? "Thinking…" : "Thought"}
+      </button>
+      {expanded && <div className="agent-thinking-body">{text}</div>}
+    </div>
+  );
+}
+
+/** One tool call: icon, what it did, +/- for edits, spinner until it finishes. */
+function ToolCard({ part }: { part: Extract<ChatPart, { kind: "tool" }> }) {
+  const [open, setOpen] = useState(false);
+  const icon = TOOL_ICON[part.name] ?? "code";
+  return (
+    <div className={`agent-tool${part.isError ? " failed" : ""}`}>
+      <button
+        className="agent-tool-head"
+        onClick={() => part.detail && setOpen((v) => !v)}
+        title={part.detail ? (open ? "Hide details" : "Show what was changed") : part.summary}
+      >
+        <Icon name={icon} size={12} />
+        <span className="agent-tool-summary">{part.summary}</span>
+        {(part.added > 0 || part.removed > 0) && (
+          <span className="agent-tool-diff">
+            {part.added > 0 && <span className="add">+{part.added}</span>}
+            {part.removed > 0 && <span className="del">−{part.removed}</span>}
+          </span>
+        )}
+        {part.done ? (
+          part.isError ? (
+            <Icon name="warn" size={12} className="agent-tool-err" />
+          ) : (
+            <Icon name="check" size={12} className="agent-tool-ok" />
+          )
+        ) : (
+          <span className="agent-tool-spin" aria-label="running" />
+        )}
+      </button>
+      {open && part.detail && <pre className="agent-tool-detail">{part.detail}</pre>}
+    </div>
+  );
+}
+
+/**
+ * Shown when a CLI that is installed refuses for want of a sign-in. The CLI
+ * cannot tell that Depot, and not a terminal, ran it — so it reports an
+ * expired session without saying which environment expired. Diagnostics close
+ * that gap: they name the binary Depot runs and which authentication
+ * variables it passes through, never their values.
+ */
+function AuthNotice({ auth }: { auth: Extract<AgentEvent, { kind: "auth" }> }) {
+  const [doctor, setDoctor] = useState<EngineDoctor | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const diagnose = useCallback(async () => {
+    setBusy(true);
+    try {
+      setDoctor(await api.agentDoctor(auth.engine));
+      setError("");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [auth.engine]);
+
+  return (
+    <div className="agent-auth">
+      <div className="agent-auth-head">
+        <Icon name="warn" size={13} />
+        <span>{auth.label} is not signed in here</span>
+      </div>
+      <p className="agent-auth-body">{auth.text}</p>
+      {auth.cause && <pre className="agent-auth-cause">{auth.cause}</pre>}
+      <div className="agent-auth-row">
+        <code className="agent-auth-cmd">{auth.signIn}</code>
+        <div className="spacer" />
+        {!doctor && (
+          <button className="agent-chip" disabled={busy} onClick={() => void diagnose()}>
+            {busy ? "Checking…" : "Diagnose"}
+          </button>
+        )}
+      </div>
+      {error && <pre className="agent-auth-cause">{error}</pre>}
+      {doctor && (
+        <ul className="agent-auth-notes">
+          {doctor.version && (
+            <li>
+              {doctor.label} {doctor.version}
+            </li>
+          )}
+          {doctor.notes.map((note, i) => (
+            <li key={i}>{note}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function ChangeRow({
   change,
@@ -88,14 +354,15 @@ export function AgentChat({
   onFilesChanged: (paths: string[]) => void;
   onClose: () => void;
 }) {
-  const [presets, setPresets] = useState<AgentPreset[]>([]);
-  const [agentId, setAgentId] = useState("");
+  const [engines, setEngines] = useState<EngineStatus[] | null>(null);
+  const [engineId, setEngineId] = useState("claude");
+  const [model, setModel] = useState("");
+  const [effort, setEffort] = useState("default");
+  const [mode, setMode] = useState("acceptEdits");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState("");
   const [runId, setRunId] = useState("");
   const [busy, setBusy] = useState(false);
-  const [editingArgs, setEditingArgs] = useState(false);
-  const [argOverride, setArgOverride] = useState<Record<string, string>>({});
 
   const transcript = useRef<HTMLDivElement>(null);
   const report = useRef(onError);
@@ -105,22 +372,30 @@ export function AgentChat({
 
   useEffect(() => {
     void api
-      .agentList()
-      .then((list) => {
-        setPresets(list);
-        setAgentId((current) => current || list.find((p) => p.available)?.id || list[0]?.id || "");
+      .agentEngines()
+      .then((found) => {
+        setEngines(found);
+        // Land on something installed rather than on a picker that cannot run.
+        setEngineId((current) =>
+          found.some((e) => e.id === current && e.available)
+            ? current
+            : (found.find((e) => e.available)?.id ?? current),
+        );
       })
       .catch((e) => report.current(String(e)));
   }, []);
 
-  const agent = useMemo(() => presets.find((p) => p.id === agentId), [presets, agentId]);
-  const effectiveArgs = useMemo(() => {
-    if (!agent) return [];
-    const override = argOverride[agent.id];
-    if (override === undefined) return agent.args;
-    // Whitespace-separated, honouring quotes so a flag value can contain spaces.
-    return override.match(/"[^"]*"|'[^']*'|\S+/g)?.map((a) => a.replace(/^["']|["']$/g, "")) ?? [];
-  }, [agent, argOverride]);
+  const engine = useMemo(
+    () => engines?.find((e) => e.id === engineId) ?? null,
+    [engines, engineId],
+  );
+  const modes = modesFor(engineId);
+
+  // Each engine has its own vocabulary for what may run unattended, so keep
+  // the selection valid when switching between them.
+  useEffect(() => {
+    if (modes.length && !modes.some((m) => m.value === mode)) setMode(modes[0].value);
+  }, [engineId, mode, modes]);
 
   // A hidden panel has no scroll height to set, so pin to the bottom again
   // when it comes back rather than leaving it stranded mid-transcript.
@@ -129,7 +404,7 @@ export function AgentChat({
     transcript.current.scrollTop = transcript.current.scrollHeight;
   }, [messages, visible]);
 
-  /* ── streaming ──────────────────────────────────────────────── */
+  /* ── streaming ─────────────────────────────────────────────── */
 
   useEffect(() => {
     let stop: Array<() => void> = [];
@@ -137,14 +412,8 @@ export function AgentChat({
 
     void (async () => {
       const off = [
-        await onAgentOut((e) => {
-          setMessages((all) =>
-            all.map((m) =>
-              m.id === e.id
-                ? { ...m, text: `${m.text}${m.text ? "\n" : ""}${clean(e.line)}` }
-                : m,
-            ),
-          );
+        await onAgentEvent((e) => {
+          setMessages((all) => all.map((m) => applyEvent(m, e)));
         }),
         await onAgentDone((e) => {
           setRunId((current) => (current === e.id ? "" : current));
@@ -183,23 +452,25 @@ export function AgentChat({
       }
 
       setMessages((all) =>
-        all.map((m) =>
-          m.id === id
-            ? {
-                ...m,
-                streaming: false,
-                failed,
-                changes,
-                text:
-                  m.text ||
-                  (error
-                    ? `Could not run the agent: ${error}`
-                    : failed
-                      ? `The agent exited with code ${code}.`
-                      : "(no output)"),
-              }
-            : m,
-        ),
+        all.map((m) => {
+          if (m.id !== id) return m;
+          const said = m.text || m.parts?.some((p) => p.kind === "text" && p.text.trim());
+          return {
+            ...m,
+            streaming: false,
+            failed: failed || m.failed,
+            changes,
+            text:
+              m.text ||
+              (said || m.auth
+                ? ""
+                : error
+                  ? `Could not run the agent: ${error}`
+                  : failed
+                    ? `The agent exited with code ${code}.`
+                    : ""),
+          };
+        }),
       );
 
       if (changes.length) notify.current(changes.map((c) => c.absPath));
@@ -208,17 +479,15 @@ export function AgentChat({
     [],
   );
 
-  /* ── running ────────────────────────────────────────────────── */
+  /* ── running ───────────────────────────────────────────────── */
 
   const send = useCallback(async () => {
     const text = prompt.trim();
     if (!text || busy) return;
-    if (!agent) {
-      report.current("Pick an agent first.");
-      return;
-    }
-    if (!agent.available) {
-      report.current(`\`${agent.command}\` is not on your PATH. Install it, or edit the command.`);
+    if (!engine?.available) {
+      report.current(
+        `\`${engineId}\` is not on your PATH. Install it, then reopen this panel.`,
+      );
       return;
     }
 
@@ -229,7 +498,7 @@ export function AgentChat({
     setMessages((all) => [
       ...all,
       { id: `${id}-you`, role: "you", text },
-      { id, role: "agent", text: "", streaming: true },
+      { id, role: "agent", text: "", parts: [], streaming: true, engine: engine.label },
     ]);
 
     try {
@@ -248,21 +517,33 @@ export function AgentChat({
           },
         ]);
       }
-      await api.agentRun(id, agent.command, effectiveArgs, root, text);
+      await api.agentRun(id, root, text, {
+        engine: engineId,
+        model,
+        effort,
+        permissionMode: mode,
+        resume: true,
+      });
     } catch (e) {
       setRunId("");
       await finish(id, null, String(e));
     } finally {
       setBusy(false);
     }
-  }, [agent, busy, effectiveArgs, finish, prompt, root]);
+  }, [busy, effort, engine, engineId, finish, mode, model, prompt, root]);
 
   const cancel = useCallback(() => {
     if (!runId) return;
     void api.agentCancel(runId).catch((e) => report.current(String(e)));
   }, [runId]);
 
-  /* ── keep / revert ──────────────────────────────────────────── */
+  /** Clears the transcript *and* the agent's own memory of the conversation. */
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    void api.agentReset(engineId, root).catch((e) => report.current(String(e)));
+  }, [engineId, root]);
+
+  /* ── keep / revert ─────────────────────────────────────────── */
 
   const drop = useCallback((messageId: string, path: string) => {
     setMessages((all) =>
@@ -299,15 +580,41 @@ export function AgentChat({
     [drop],
   );
 
-  /* ── render ─────────────────────────────────────────────────── */
+  /* ── render ────────────────────────────────────────────────── */
 
-  const anyAvailable = presets.some((p) => p.available);
+  const available = Boolean(engine?.available);
+  const modeNote = modes.find((m) => m.value === mode)?.note ?? "";
+  const hints = MODEL_HINTS[engineId] ?? [];
 
   return (
     <div className="agent">
       <div className="agent-head">
-        <span className="code-explorer-title as-label">Chat</span>
-        <button className="icon-mini" title="Clear conversation" onClick={() => setMessages([])}>
+        <select
+          className="input agent-engine"
+          value={engineId}
+          disabled={busy || !engines}
+          title="Which agent CLI runs this conversation"
+          onChange={(e) => setEngineId(e.target.value)}
+        >
+          {(engines ?? [{ id: "claude", label: "Claude Code", available: true }]).map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.available ? e.label : `${e.label} (not installed)`}
+            </option>
+          ))}
+        </select>
+        <span className={`agent-status ${engines ? (available ? "on" : "off") : ""}`}>
+          {!engines
+            ? "Looking for agent CLIs…"
+            : available
+              ? (engine?.version ?? "installed")
+              : "not found"}
+        </span>
+        <div className="spacer" />
+        <button
+          className="icon-mini"
+          title="New conversation — the agent forgets this thread"
+          onClick={clearChat}
+        >
           <Icon name="trash" size={13} />
         </button>
         <button className="icon-mini" title="Hide chat" onClick={onClose}>
@@ -315,54 +622,14 @@ export function AgentChat({
         </button>
       </div>
 
-      <div className="agent-picker">
-        <select
-          className="input"
-          value={agentId}
-          onChange={(e) => setAgentId(e.target.value)}
-          disabled={busy}
-        >
-          {presets.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-              {p.available ? "" : " — not installed"}
-            </option>
-          ))}
-        </select>
-        <button
-          className={editingArgs ? "icon-mini on" : "icon-mini"}
-          title="Edit the command line"
-          onClick={() => setEditingArgs((v) => !v)}
-        >
-          <Icon name="gear" size={13} />
-        </button>
-      </div>
-
-      {agent && <div className="agent-note">{agent.note}</div>}
-
-      {editingArgs && agent && (
-        <div className="agent-args">
-          <label>Arguments — {"{{prompt}}"} is replaced with your message</label>
-          <input
-            className="input"
-            value={argOverride[agent.id] ?? agent.args.join(" ")}
-            onChange={(e) => setArgOverride((all) => ({ ...all, [agent.id]: e.target.value }))}
-            spellCheck={false}
-          />
-          <div className="agent-args-cmd">
-            {agent.command} {effectiveArgs.join(" ")}
-          </div>
-        </div>
-      )}
-
       <div className="agent-transcript" ref={transcript}>
         {!messages.length && (
           <div className="agent-empty">
-            <Icon name="code" size={26} />
+            <Icon name="sparkle" size={26} />
             <p>
-              {anyAvailable
-                ? "Ask the agent to change something in this folder. Every file it touches can be kept or reverted afterwards."
-                : "No agent CLI found on your PATH. Install Claude Code, Codex, Copilot CLI or opencode, then reopen this panel."}
+              {available
+                ? `Ask ${engine?.label} to change something in this folder. Watch it think, edit files and run commands — then keep or revert every file it touched.`
+                : `${engine?.label ?? "This CLI"} was not found on your PATH. Install it (${engine?.install ?? ""}), sign in with \`${engine?.signIn ?? ""}\`, then reopen this panel.`}
             </p>
           </div>
         )}
@@ -370,10 +637,36 @@ export function AgentChat({
         {messages.map((m) => (
           <div key={m.id} className={`agent-msg ${m.role}${m.failed ? " failed" : ""}`}>
             <div className="agent-msg-role">
-              {m.role === "you" ? "You" : m.role === "agent" ? agent?.label ?? "Agent" : "Depot"}
+              {m.role === "you"
+                ? "You"
+                : m.role === "agent"
+                  ? `${m.engine ?? "Agent"}${m.model ? ` · ${shortModel(m.model)}` : ""}`
+                  : "Depot"}
               {m.streaming && <span className="agent-dots" aria-label="running" />}
             </div>
+
             {m.text && <pre className="agent-msg-body">{m.text}</pre>}
+
+            {m.parts?.map((p, i) =>
+              p.kind === "text" ? (
+                <div key={i} className="agent-text">
+                  {p.text}
+                </div>
+              ) : p.kind === "thinking" ? (
+                <ThinkingBlock key={i} text={p.text} live={Boolean(m.streaming)} />
+              ) : (
+                <ToolCard key={p.toolId || i} part={p} />
+              ),
+            )}
+
+            {m.auth && <AuthNotice auth={m.auth} />}
+
+            {m.streaming && !m.parts?.length && (
+              <div className="agent-text agent-starting">Starting {m.engine ?? "agent"}…</div>
+            )}
+
+            {m.meta && <div className="agent-meta">{m.meta}</div>}
+            {m.failed && m.logs && <pre className="agent-logs">{m.logs}</pre>}
 
             {m.changes && m.changes.length > 0 && m.checkpoint && (
               <div className="agent-changes">
@@ -409,16 +702,68 @@ export function AgentChat({
       </div>
 
       <div className="agent-compose">
+        <div className="agent-opts">
+          <input
+            className="input agent-opt"
+            list="agent-model-hints"
+            value={model}
+            disabled={busy}
+            placeholder="Model: default"
+            title="Which model the agent uses; blank keeps the CLI's own default"
+            onChange={(e) => setModel(e.target.value)}
+          />
+          <datalist id="agent-model-hints">
+            {hints.map((h) => (
+              <option key={h} value={h} />
+            ))}
+          </datalist>
+          {engineId === "claude" && (
+            <select
+              className="input agent-opt"
+              value={effort}
+              disabled={busy}
+              title="How hard the agent thinks"
+              onChange={(e) => setEffort(e.target.value)}
+            >
+              {EFFORTS.map((e) => (
+                <option key={e.value} value={e.value}>
+                  {e.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {modes.length > 0 && (
+            <select
+              className="input agent-opt"
+              value={mode}
+              disabled={busy}
+              title="What the agent may do without asking"
+              onChange={(e) => setMode(e.target.value)}
+            >
+              {modes.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="agent-note">
+          {modeNote ||
+            (engine && !engine.structured
+              ? `${engine.label} has no structured stream, so its replies arrive as plain text.`
+              : "")}
+        </div>
         <textarea
           className="input agent-input"
           rows={3}
           placeholder={
-            anyAvailable
+            available
               ? "Describe the change you want (⌘/Ctrl Enter to send)"
-              : "Install an agent CLI to use this panel"
+              : `Install ${engine?.label ?? "an agent CLI"} to use this panel`
           }
           value={prompt}
-          disabled={!anyAvailable}
+          disabled={!available}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
@@ -439,7 +784,7 @@ export function AgentChat({
           ) : (
             <button
               className="btn btn-primary"
-              disabled={!prompt.trim() || busy || !agent?.available}
+              disabled={!prompt.trim() || busy || !available}
               onClick={() => void send()}
             >
               <Icon name="forward" size={14} />

@@ -410,25 +410,38 @@ async fn git_commit(root: String, message: String, amend: bool) -> Result<String
 }
 
 #[tauri::command]
-fn agent_list() -> Vec<agents::AgentPreset> {
-    agents::list()
+async fn agent_engines() -> Vec<agents::EngineStatus> {
+    agents::status().await
+}
+
+/// Why an engine will not run, for the panel's diagnostics drawer. Reports
+/// which authentication variables are set, never their values.
+#[tauri::command]
+async fn agent_doctor(engine: String) -> Result<agents::EngineDoctor, String> {
+    agents::doctor(engine).await
 }
 
 #[tauri::command]
 async fn agent_run(
     app: AppHandle,
     id: String,
-    command: String,
-    args: Vec<String>,
     cwd: String,
     prompt: String,
+    options: agents::AgentOptions,
 ) -> Result<(), String> {
-    agents::run(&app, id, command, args, cwd, prompt).await
+    agents::run(&app, id, cwd, prompt, options).await
 }
 
 #[tauri::command]
 async fn agent_cancel(id: String) -> Result<(), String> {
     agents::cancel(id).await
+}
+
+/// Forgets the stored conversation, so the next turn starts cold instead of
+/// resuming.
+#[tauri::command]
+fn agent_reset(engine: String, cwd: String) {
+    agents::reset(engine, cwd);
 }
 
 #[tauri::command]
@@ -570,9 +583,11 @@ pub fn run() {
             git_unstage,
             git_discard,
             git_commit,
-            agent_list,
+            agent_engines,
+            agent_doctor,
             agent_run,
             agent_cancel,
+            agent_reset,
             checkpoint_create,
             checkpoint_changes,
             checkpoint_original,

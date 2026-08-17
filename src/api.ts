@@ -3,10 +3,12 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AgentChange,
-  AgentChunk,
   AgentDone,
-  AgentPreset,
+  AgentEvent,
+  AgentOptions,
   AppSettings,
+  EngineDoctor,
+  EngineStatus,
   CheckpointInfo,
   DirEntry,
   DiskUsage,
@@ -115,12 +117,16 @@ export const api = {
   gitCommit: (root: string, message: string, amend = false) =>
     invoke<string>("git_commit", { root, message, amend }),
 
-  /* Coding-agent CLIs. Depot spawns the tool the user already has; it never
-     talks to a model itself and holds no API key. */
-  agentList: () => invoke<AgentPreset[]>("agent_list"),
-  agentRun: (id: string, command: string, args: string[], cwd: string, prompt: string) =>
-    invoke<void>("agent_run", { id, command, args, cwd, prompt }),
+  /* Coding agents. Depot spawns whichever CLI the user already has signed in
+     — Claude Code, Codex, and friends — and never talks to a model itself. */
+  agentEngines: () => invoke<EngineStatus[]>("agent_engines"),
+  /** Why an engine will not run: paths, versions, which auth vars are set. */
+  agentDoctor: (engine: string) => invoke<EngineDoctor>("agent_doctor", { engine }),
+  agentRun: (id: string, cwd: string, prompt: string, options: AgentOptions) =>
+    invoke<void>("agent_run", { id, cwd, prompt, options }),
   agentCancel: (id: string) => invoke<void>("agent_cancel", { id }),
+  /** Forgets the stored conversation so the next turn starts cold. */
+  agentReset: (engine: string, cwd: string) => invoke<void>("agent_reset", { engine, cwd }),
 
   /* Checkpoints: what makes an agent's edits undoable. */
   checkpointCreate: (root: string) => invoke<CheckpointInfo>("checkpoint_create", { root }),
@@ -148,10 +154,11 @@ export function onTransfer(handler: (e: TransferEvent) => void) {
   return listen<TransferEvent>("transfer", (event) => handler(event.payload));
 }
 
-/** One line of agent output, as it is produced. */
-export function onAgentOut(handler: (e: AgentChunk) => void) {
-  return listen<AgentChunk>("agent:out", (event) => handler(event.payload));
+/** One structured agent event (thinking, text, tool call, result), as it happens. */
+export function onAgentEvent(handler: (e: AgentEvent) => void) {
+  return listen<AgentEvent>("agent:event", (event) => handler(event.payload));
 }
+
 
 export function onAgentDone(handler: (e: AgentDone) => void) {
   return listen<AgentDone>("agent:done", (event) => handler(event.payload));
