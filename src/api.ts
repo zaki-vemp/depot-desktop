@@ -1,12 +1,21 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import type {
+  AgentChange,
+  AgentChunk,
+  AgentDone,
+  AgentPreset,
   AppSettings,
+  CheckpointInfo,
   DirEntry,
   DiskUsage,
   DriveAccount,
+  GitRepo,
   Place,
   SubtitleTrack,
+  TermData,
+  TermExit,
   TorrentInfo,
   TransferEvent,
   OpenApp,
@@ -20,6 +29,10 @@ export const api = {
   home: () => invoke<string>("get_home"),
   listDir: (path: string) => invoke<DirEntry[]>("list_dir", { path }),
   readText: (path: string) => invoke<string>("read_text_file", { path }),
+  writeText: (path: string, contents: string) =>
+    invoke<void>("write_text_file", { path, contents }),
+  createFile: (path: string) => invoke<void>("create_file", { path }),
+  isTextFile: (path: string) => invoke<boolean>("is_text_file", { path }),
   mkdir: (path: string) => invoke<void>("mkdir", { path }),
   rename: (from: string, to: string) =>
     invoke<void>("rename_path", { from, to }),
@@ -28,6 +41,11 @@ export const api = {
   copy: (from: string, to: string) => invoke<void>("copy_path", { from, to }),
   move: (from: string, to: string) => invoke<void>("move_path", { from, to }),
   parent: (path: string) => invoke<string | null>("parent_path", { path }),
+  /** Native folder chooser; resolves to null when the user cancels. */
+  pickFolder: async (title: string, defaultPath?: string) => {
+    const picked = await openDialog({ directory: true, multiple: false, title, defaultPath });
+    return typeof picked === "string" ? picked : null;
+  },
   openSystem: (path: string) => invoke<void>("open_in_system", { path }),
   reveal: (path: string) => invoke<void>("reveal_in_dir", { path }),
   previewOffice: (path: string) => invoke<OfficePreview>("preview_office", { path }),
@@ -86,6 +104,40 @@ export const api = {
   listSubtitles: (path: string) => invoke<SubtitleTrack[]>("list_subtitles", { path }),
   subtitleVtt: (path: string, trackId: string) =>
     invoke<string>("subtitle_vtt", { path, trackId }),
+  /* Source control. `gitInfo` resolves to null outside a repository. */
+  gitInfo: (cwd: string) => invoke<GitRepo | null>("git_info", { cwd }),
+  /** Contents at a revision: `HEAD` for the last commit, `:` for the index. */
+  gitShow: (root: string, rev: string, path: string) =>
+    invoke<string>("git_show", { root, rev, path }),
+  gitStage: (root: string, paths: string[]) => invoke<void>("git_stage", { root, paths }),
+  gitUnstage: (root: string, paths: string[]) => invoke<void>("git_unstage", { root, paths }),
+  gitDiscard: (root: string, paths: string[]) => invoke<void>("git_discard", { root, paths }),
+  gitCommit: (root: string, message: string, amend = false) =>
+    invoke<string>("git_commit", { root, message, amend }),
+
+  /* Coding-agent CLIs. Depot spawns the tool the user already has; it never
+     talks to a model itself and holds no API key. */
+  agentList: () => invoke<AgentPreset[]>("agent_list"),
+  agentRun: (id: string, command: string, args: string[], cwd: string, prompt: string) =>
+    invoke<void>("agent_run", { id, command, args, cwd, prompt }),
+  agentCancel: (id: string) => invoke<void>("agent_cancel", { id }),
+
+  /* Checkpoints: what makes an agent's edits undoable. */
+  checkpointCreate: (root: string) => invoke<CheckpointInfo>("checkpoint_create", { root }),
+  checkpointChanges: (id: string) => invoke<AgentChange[]>("checkpoint_changes", { id }),
+  checkpointOriginal: (id: string, path: string) =>
+    invoke<string>("checkpoint_original", { id, path }),
+  checkpointRevert: (id: string, paths: string[]) =>
+    invoke<void>("checkpoint_revert", { id, paths }),
+  checkpointDiscard: (id: string) => invoke<void>("checkpoint_discard", { id }),
+
+  /* The built-in terminal: a real pty per session, driven from xterm.js. */
+  termOpen: (id: string, cwd: string, cols: number, rows: number) =>
+    invoke<void>("term_open", { id, cwd, cols, rows }),
+  termWrite: (id: string, data: string) => invoke<void>("term_write", { id, data }),
+  termResize: (id: string, cols: number, rows: number) =>
+    invoke<void>("term_resize", { id, cols, rows }),
+  termClose: (id: string) => invoke<void>("term_close", { id }),
   addTorrent: (magnet: string) => invoke<string>("add_torrent", { magnet }),
   torrents: () => invoke<TorrentInfo[]>("list_torrents"),
   pauseTorrent: (id: number) => invoke<void>("pause_torrent", { id }),
@@ -94,6 +146,24 @@ export const api = {
 
 export function onTransfer(handler: (e: TransferEvent) => void) {
   return listen<TransferEvent>("transfer", (event) => handler(event.payload));
+}
+
+/** One line of agent output, as it is produced. */
+export function onAgentOut(handler: (e: AgentChunk) => void) {
+  return listen<AgentChunk>("agent:out", (event) => handler(event.payload));
+}
+
+export function onAgentDone(handler: (e: AgentDone) => void) {
+  return listen<AgentDone>("agent:done", (event) => handler(event.payload));
+}
+
+/** Raw pty output. `chunk` is base64 so partial UTF-8 sequences survive the hop. */
+export function onTermData(handler: (e: TermData) => void) {
+  return listen<TermData>("term:data", (event) => handler(event.payload));
+}
+
+export function onTermExit(handler: (e: TermExit) => void) {
+  return listen<TermExit>("term:exit", (event) => handler(event.payload));
 }
 
 export function fileUrl(path: string) {
@@ -110,6 +180,22 @@ export function joinPath(dir: string, name: string) {
 
 export function baseName(path: string) {
   return path.split(/[/\\]/).filter(Boolean).pop() || path;
+}
+
+/**
+ * The containing directory, with roots kept intact on every platform:
+ * `C:\Users` → `C:\` (not the drive-relative `C:`), and `/etc` → `/`.
+ */
+export function parentDir(path: string) {
+  const windows = /^[A-Za-z]:/.test(path) || path.includes("\\");
+  const sep = windows ? "\\" : "/";
+  const trimmed = path.replace(/[/\\]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (cut < 0) return path;
+  const head = trimmed.slice(0, cut);
+  if (!head) return sep;
+  if (windows && /^[A-Za-z]:$/.test(head)) return head + sep;
+  return head;
 }
 
 export function driveDestPath(accountId: string, folderId: string | undefined, name: string) {

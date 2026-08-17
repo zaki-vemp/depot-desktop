@@ -7,9 +7,7 @@
 
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 
-/// Parked position for a hidden webview — offscreen instead of destroyed, so the
-/// page keeps its state while another tab is in front.
-const OFFSCREEN: f64 = -20000.0;
+use crate::webview_layout;
 
 fn parse(url: &str) -> Result<url::Url, String> {
     let candidate = if url.contains("://") {
@@ -47,6 +45,8 @@ pub fn open(
             LogicalSize::new(width.max(1.0), height.max(1.0)),
         )
         .map_err(|e| e.to_string())?;
+    webview_layout::adopt(app, label)?;
+    set_bounds(app, label, x, y, width, height)?;
     Ok(target.to_string())
 }
 
@@ -58,30 +58,24 @@ pub fn set_bounds(
     width: f64,
     height: f64,
 ) -> Result<(), String> {
-    let Some(webview) = app.get_webview(label) else {
+    if app.get_webview(label).is_none() {
         return Ok(());
-    };
-    webview
-        .set_size(LogicalSize::new(width.max(1.0), height.max(1.0)))
-        .map_err(|e| e.to_string())?;
-    webview
-        .set_position(LogicalPosition::new(x, y))
-        .map_err(|e| e.to_string())
+    }
+    webview_layout::place(app, label, x, y, width, height)
 }
 
 pub fn hide(app: &AppHandle, label: &str) -> Result<(), String> {
-    let Some(webview) = app.get_webview(label) else {
+    if app.get_webview(label).is_none() {
         return Ok(());
-    };
-    webview
-        .set_position(LogicalPosition::new(OFFSCREEN, OFFSCREEN))
-        .map_err(|e| e.to_string())
+    }
+    webview_layout::park(app, label)
 }
 
 pub fn close(app: &AppHandle, label: &str) -> Result<(), String> {
     if let Some(webview) = app.get_webview(label) {
         webview.close().map_err(|e| e.to_string())?;
     }
+    webview_layout::forget(app, label);
     Ok(())
 }
 

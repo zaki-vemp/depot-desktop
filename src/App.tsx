@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -7,7 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { api, baseName, driveDestPath, fileUrl, joinPath, onTransfer } from "./api";
+import { api, baseName, driveDestPath, fileUrl, joinPath, onTransfer, parentDir } from "./api";
 import {
   chromeIconFor,
   extOf,
@@ -37,6 +39,12 @@ import { OfficePreview } from "./views/OfficePreview";
 import { OpenWithMenu } from "./views/OpenWith";
 import { Connections, ProviderHeading as ProviderSettingsHeading } from "./views/Connections";
 import "./App.css";
+
+// Monaco is several megabytes of parsed JavaScript. Keeping it behind a lazy
+// import means a session that never opens a code tab never pays for it.
+const CodeEditor = lazy(() =>
+  import("./views/CodeEditor").then((m) => ({ default: m.CodeEditor })),
+);
 
 let seq = 1;
 const uid = (prefix: string) => `${prefix}-${seq++}-${Date.now()}`;
@@ -73,6 +81,20 @@ function webUrlHost(value: string) {
   } catch {
     return value;
   }
+}
+
+/**
+ * Tab label for a workspace. Two folders called `src` are easy to open at
+ * once, so a colliding name is qualified with its parent.
+ */
+function workspaceTitle(root: string, existing: Tab[]) {
+  const name = baseName(root) || root;
+  const clash = existing.some(
+    (t) => t.kind === "editor" && t.path !== root && (baseName(t.path || "") || t.path) === name,
+  );
+  if (!clash) return name;
+  const parent = baseName(parentDir(root));
+  return parent && parent !== name ? `${name} — ${parent}` : root;
 }
 
 function duplicateName(name: string) {
@@ -182,6 +204,9 @@ export default function App() {
   });
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; entry: DirEntry | null } | null>(null);
+  /** Per editor tab: "open this file", bumped so a repeat request still fires. */
+  const [editorRequests, setEditorRequests] = useState<Record<string, { file: string; nonce: number }>>({});
+  const [editorDirty, setEditorDirty] = useState<Record<string, number>>({});
 
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
@@ -247,6 +272,78 @@ export default function App() {
     [pushTab],
   );
 
+  /**
+   * Opens a code workspace on `root`.
+   *
+   * Implicit routes — "Edit code" on a file, the inspector button — reuse a
+   * workspace already rooted there rather than spawning a second explorer and
+   * a second shell. `newTab` is for the explicit "open folder" actions, where
+   * asking for another workspace on the same folder is the whole point.
+   */
+  const openEditor = useCallback(
+    (root: string, file?: string, newTab = false) => {
+      if (!root) {
+        setError("Pick a folder to edit first.");
+        return;
+      }
+      const existing = newTab ? undefined : tabs.find((t) => t.kind === "editor" && t.path === root);
+      if (existing) {
+        setActiveId(existing.id);
+        if (file) {
+          setEditorRequests((all) => ({
+            ...all,
+            [existing.id]: { file, nonce: (all[existing.id]?.nonce ?? 0) + 1 },
+          }));
+        }
+        return;
+      }
+      pushTab({
+        id: uid("tab"),
+        kind: "editor",
+        title: workspaceTitle(root, tabs),
+        path: root,
+        source: "local",
+        file,
+        history: [],
+        historyIndex: -1,
+      });
+    },
+    [pushTab, tabs],
+  );
+
+  /** Native folder chooser, then a fresh workspace tab on what was picked. */
+  const pickWorkspace = useCallback(
+    async (startIn?: string) => {
+      try {
+        const picked = await api.pickFolder("Choose a folder to edit", startIn);
+        if (picked) openEditor(picked, undefined, true);
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [openEditor],
+  );
+
+  /** Re-roots an existing workspace onto another folder. */
+  const rerootEditor = useCallback(
+    async (tabId: string, startIn?: string) => {
+      try {
+        const picked = await api.pickFolder("Choose a folder to edit", startIn);
+        if (!picked) return;
+        setTabs((all) =>
+          all.map((t) =>
+            t.id === tabId
+              ? { ...t, path: picked, title: workspaceTitle(picked, all.filter((o) => o.id !== t.id)) }
+              : t,
+          ),
+        );
+      } catch (e) {
+        setError(String(e));
+      }
+    },
+    [],
+  );
+
   const openToolTab = useCallback(
     (kind: Tab["kind"], title: string) => {
       const existing = tabs.find((t) => t.kind === kind);
@@ -296,18 +393,37 @@ export default function App() {
 
   const closeTab = useCallback(
     (id: string) => {
-      setTabs((all) => {
-        if (all.length === 1) return all;
-        const target = all.find((t) => t.id === id);
-        if (target?.kind === "web" || target?.kind === "app") {
-          void api.webClose(id).catch(() => undefined);
-        }
-        const next = all.filter((t) => t.id !== id);
-        if (id === activeId) setActiveId(next[next.length - 1].id);
-        return next;
-      });
+      const drop = () =>
+        setTabs((all) => {
+          if (all.length === 1) return all;
+          const target = all.find((t) => t.id === id);
+          if (target?.kind === "web" || target?.kind === "app") {
+            void api.webClose(id).catch(() => undefined);
+          }
+          const next = all.filter((t) => t.id !== id);
+          if (id === activeId) setActiveId(next[next.length - 1].id);
+          return next;
+        });
+
+      // Closing a code workspace throws away every buffer in it, so make the
+      // unsaved ones say so first.
+      const unsaved = editorDirty[id] ?? 0;
+      if (unsaved > 0) {
+        setActiveId(id);
+        setPrompt({
+          title: `${unsaved} unsaved file${unsaved === 1 ? "" : "s"} in this workspace`,
+          label: 'Type "discard" to close and lose those edits',
+          value: "",
+          okLabel: "Close anyway",
+          danger: true,
+          requireExact: "discard",
+          onOk: drop,
+        });
+        return;
+      }
+      drop();
     },
-    [activeId],
+    [activeId, editorDirty],
   );
 
   /** Navigates the active files tab and records the jump for back/forward. */
@@ -744,6 +860,10 @@ export default function App() {
       const meta = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
 
+      // Inside the code workspace, Monaco and the terminal own the keyboard;
+      // the file-manager shortcuts would otherwise steal ⌘W, ⌘R and friends.
+      if (el.closest?.(".code-workspace") && e.key !== "Escape") return;
+
       if (e.key === "Escape") {
         if ((el as HTMLElement).closest?.(".player.is-full")) return;
         setMenu(null);
@@ -830,6 +950,7 @@ export default function App() {
 
   const localPlaces = places.filter((p) => p.kind !== "volume");
   const volumes = places.filter((p) => p.kind === "volume");
+  const editorTabs = tabs.filter((t) => t.kind === "editor");
   const selection = selectedEntries();
   const primary = selection[0] ?? null;
   const crumbs =
@@ -843,6 +964,7 @@ export default function App() {
   const tabIcon = (t: Tab): IconName => {
     if (t.kind === "files") return t.source === "gdrive" ? "cloud" : "folder";
     if (t.kind === "preview") return chromeIconFor({ isDir: false, ext: extOf(t.title) });
+    if (t.kind === "editor") return "code";
     if (t.kind === "web") return "globe";
     if (t.kind === "app" && t.app) return SOCIAL_APPS[t.app].icon;
     if (t.kind === "torrents") return "magnet";
@@ -891,6 +1013,14 @@ export default function App() {
           { k: "Bundle", v: "com.depot.files" },
           { k: "Shell", v: "Tauri 2 · React 19" },
           { k: "Config", v: "app data · settings.json" },
+        ];
+      case "editor":
+        return [
+          { k: "Workspace", v: active?.path || "" },
+          { k: "Unsaved", v: String(editorDirty[active?.id || ""] ?? 0) },
+          { k: "Editor", v: "Monaco" },
+          { k: "Terminal", v: "Login shell on a pty" },
+          { k: "Save", v: "⌘/Ctrl S · ⇧ for all" },
         ];
       case "preview":
         return [
@@ -1026,6 +1156,44 @@ export default function App() {
               on={activeKind === "app" && active?.app === "instagram"}
               onClick={() => openSocialApp("instagram")}
             />
+          </SideGroup>
+
+          <SideGroup label="Workspace" hint={editorTabs.length ? String(editorTabs.length) : "Code"}>
+            <SideItem
+              icon="folderOpen"
+              label="Open folder…"
+              onClick={() =>
+                void pickWorkspace(
+                  active?.kind === "editor"
+                    ? active.path
+                    : active?.kind === "files" && active.source === "local"
+                      ? active.path
+                      : places[0]?.path,
+                )
+              }
+            />
+            <SideItem
+              icon="code"
+              label="Edit this folder"
+              on={activeKind === "editor"}
+              onClick={() =>
+                openEditor(
+                  active?.kind === "files" && active.source === "local" && active.path
+                    ? active.path
+                    : places[0]?.path || "",
+                )
+              }
+            />
+            {editorTabs.map((t) => (
+              <SideItem
+                key={t.id}
+                icon="code"
+                label={t.title}
+                badge={editorDirty[t.id] ? String(editorDirty[t.id]) : ""}
+                on={active?.id === t.id}
+                onClick={() => setActiveId(t.id)}
+              />
+            ))}
           </SideGroup>
 
           <SideGroup label="Activity" hint="">
@@ -1177,7 +1345,9 @@ export default function App() {
                       ? `${accounts.length} accounts`
                       : activeKind === "settings"
                         ? "Depot 0.1.0"
-                        : kindLabel({ isDir: false, ext: extOf(active.title) })}
+                        : activeKind === "editor"
+                          ? `${editorDirty[active.id] ?? 0} unsaved`
+                          : kindLabel({ isDir: false, ext: extOf(active.title) })}
               </span>
             )}
             {panelToggles}
@@ -1187,7 +1357,10 @@ export default function App() {
           <div className="stage">
             <main
               className={
-                activeKind === "preview" || activeKind === "web" || activeKind === "app"
+                activeKind === "preview" ||
+                activeKind === "editor" ||
+                activeKind === "web" ||
+                activeKind === "app"
                   ? "content flush"
                   : "content"
               }
@@ -1289,9 +1462,42 @@ export default function App() {
                   path={active.path || ""}
                   source={active.source ?? "local"}
                   parked={!!prompt || !!quickLook}
+                  onEdit={
+                    active.source === "gdrive" || !active.path
+                      ? undefined
+                      : () => openEditor(parentDir(active.path || ""), active.path)
+                  }
                   onError={setError}
                 />
               )}
+
+              {/* Editor tabs stay mounted while another tab is on screen: an
+                  unsaved buffer or a running shell must survive a tab click. */}
+              {editorTabs.map((t) => (
+                <div
+                  key={t.id}
+                  className="editor-host"
+                  style={{ display: t.id === active?.id ? undefined : "none" }}
+                >
+                  <Suspense fallback={<div className="empty">Loading editor…</div>}>
+                  <CodeEditor
+                    root={t.path || ""}
+                    initialFile={t.file}
+                    openRequest={editorRequests[t.id]}
+                    theme={prefs.theme}
+                    visible={t.id === active?.id && !prompt && !quickLook}
+                    showHidden={prefs.showHidden}
+                    onError={setError}
+                    onDirtyCount={(count) =>
+                      setEditorDirty((all) => (all[t.id] === count ? all : { ...all, [t.id]: count }))
+                    }
+                    onPrompt={(options) => setPrompt({ ...options })}
+                    onOpenFolder={() => void pickWorkspace(t.path)}
+                    onChangeFolder={() => void rerootEditor(t.id, t.path)}
+                  />
+                  </Suspense>
+                </div>
+              ))}
 
               {activeKind === "web" && active && (
                 <WebPane
@@ -1713,6 +1919,18 @@ export default function App() {
                         Quick look
                       </button>
                     )}
+                    {primary.source === "local" && (
+                      <button
+                        className="btn btn-secondary btn-block"
+                        onClick={() =>
+                          primary.isDir
+                            ? openEditor(primary.path)
+                            : openEditor(active?.path || parentDir(primary.path), primary.path)
+                        }
+                      >
+                        {primary.isDir ? "Open folder in editor" : "Edit code"}
+                      </button>
+                    )}
                     {!primary.isDir && primary.source === "local" && (
                       <OpenWithMenu path={primary.path} onError={setError} variant="bar" />
                     )}
@@ -1819,6 +2037,28 @@ export default function App() {
             }}
           >
             Quick look — Space
+          </button>
+          <button
+            disabled={!menu.entry || menu.entry.source !== "local"}
+            onClick={() => {
+              const entry = menu.entry;
+              setMenu(null);
+              if (!entry || entry.source !== "local") return;
+              if (entry.isDir) openEditor(entry.path);
+              else openEditor(active?.path || parentDir(entry.path), entry.path);
+            }}
+          >
+            {menu.entry?.isDir ? "Open folder in editor" : "Edit code"}
+          </button>
+          <button
+            disabled={!menu.entry?.isDir || menu.entry.source !== "local"}
+            onClick={() => {
+              const entry = menu.entry;
+              setMenu(null);
+              if (entry?.isDir && entry.source === "local") openEditor(entry.path, undefined, true);
+            }}
+          >
+            Open folder in a new editor tab
           </button>
           {menu.entry && !menu.entry.isDir && menu.entry.source === "local" && (
             <OpenWithMenu
@@ -2072,12 +2312,15 @@ function PreviewPane({
   path,
   source,
   parked = false,
+  onEdit,
   onError,
 }: {
   title: string;
   path: string;
   source: SourceKind;
   parked?: boolean;
+  /** Hands a text file to the code workspace; absent for Drive files. */
+  onEdit?: () => void;
   onError: (message: string) => void;
 }) {
   const ext = extOf(title);
@@ -2108,6 +2351,12 @@ function PreviewPane({
       <div className="doc-head">
         <div className="heading">{title}</div>
         <div className="spacer" />
+        {kind === "text" && onEdit && (
+          <button className="btn btn-secondary" onClick={onEdit}>
+            <Icon name="edit" size={15} />
+            Edit
+          </button>
+        )}
         {local && <OpenWithMenu path={path} onError={onError} variant="bar" />}
       </div>
       <div className="doc-frame">

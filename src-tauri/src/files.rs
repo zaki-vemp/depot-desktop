@@ -211,6 +211,42 @@ pub fn read_text(path: &str, max_bytes: usize) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|_| "File is not valid UTF-8 text".into())
 }
 
+/// Writes editor buffers back to disk. Parent directories are created so
+/// "new file" in a folder the tree only just showed still lands.
+pub fn write_text(path: &str, contents: &str) -> Result<(), String> {
+    let p = Path::new(path);
+    if p.is_dir() {
+        return Err("Path is a directory".into());
+    }
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(p, contents).map_err(|e| e.to_string())
+}
+
+/// Creates an empty file, refusing to clobber one that already exists.
+pub fn create_file(path: &str) -> Result<(), String> {
+    let p = Path::new(path);
+    if p.exists() {
+        return Err(format!("{} already exists", p.display()));
+    }
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(p, "").map_err(|e| e.to_string())
+}
+
+/// Cheap probe so the editor can refuse binaries before reading them whole.
+pub fn is_text_file(path: &str, sniff_bytes: usize) -> Result<bool, String> {
+    use std::io::Read;
+    let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut buf = vec![0u8; sniff_bytes];
+    let read = file.read(&mut buf).map_err(|e| e.to_string())?;
+    buf.truncate(read);
+    // A NUL byte in the first few KB is the same heuristic git uses.
+    Ok(!buf.contains(&0))
+}
+
 pub fn mkdir(path: &str) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| e.to_string())
 }
@@ -306,4 +342,63 @@ pub fn parent_path(path: &str) -> Option<String> {
         .parent()
         .map(|p| p.display().to_string())
         .filter(|p| !p.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("depot-files-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        dir.join(name)
+    }
+
+    #[test]
+    fn write_text_round_trips() {
+        let path = scratch("round-trip.txt");
+        write_text(path.to_str().unwrap(), "line one\nline two\n").unwrap();
+        assert_eq!(
+            read_text(path.to_str().unwrap(), 1024).unwrap(),
+            "line one\nline two\n"
+        );
+
+        // Saving again replaces the file rather than appending to it.
+        write_text(path.to_str().unwrap(), "replaced").unwrap();
+        assert_eq!(read_text(path.to_str().unwrap(), 1024).unwrap(), "replaced");
+    }
+
+    #[test]
+    fn write_text_creates_missing_parents() {
+        let path = scratch("nested/deeper/new.rs");
+        write_text(path.to_str().unwrap(), "fn main() {}").unwrap();
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn write_text_refuses_a_directory() {
+        let dir = scratch("a-directory");
+        fs::create_dir_all(&dir).unwrap();
+        assert!(write_text(dir.to_str().unwrap(), "nope").is_err());
+    }
+
+    #[test]
+    fn create_file_will_not_clobber() {
+        let path = scratch("once.txt");
+        let _ = fs::remove_file(&path);
+        create_file(path.to_str().unwrap()).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "");
+        assert!(create_file(path.to_str().unwrap()).is_err());
+    }
+
+    #[test]
+    fn is_text_file_rejects_binaries() {
+        let text = scratch("code.ts");
+        write_text(text.to_str().unwrap(), "export const x = 1;\n").unwrap();
+        assert!(is_text_file(text.to_str().unwrap(), 8192).unwrap());
+
+        let binary = scratch("blob.bin");
+        fs::write(&binary, [0x7f, 0x45, 0x4c, 0x46, 0x00, 0x01, 0x02]).unwrap();
+        assert!(!is_text_file(binary.to_str().unwrap(), 8192).unwrap());
+    }
 }

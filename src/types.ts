@@ -86,6 +86,7 @@ export interface TransferEvent {
 export type TabKind =
   | "files"
   | "preview"
+  | "editor"
   | "web"
   | "app"
   | "torrents"
@@ -105,6 +106,8 @@ export interface Tab {
   folderId?: string;
   url?: string;
   app?: SocialAppKind;
+  /** Editor tabs: the file to open on first mount, if the tab was opened on one. */
+  file?: string;
   /** Visited locations for this tab, used by back/forward. */
   history: HistoryEntry[];
   historyIndex: number;
@@ -162,6 +165,108 @@ export interface SubtitleTrack {
   label: string;
   language?: string | null;
   kind: "sidecar" | "embedded";
+}
+
+/** One chunk of pty output. `chunk` is base64-encoded raw bytes. */
+export interface TermData {
+  id: string;
+  chunk: string;
+}
+
+export interface TermExit {
+  id: string;
+  code: number | null;
+}
+
+export type GitChangeKind =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "untracked"
+  | "conflicted";
+
+export interface GitFile {
+  /** Repo-relative, forward-slashed. */
+  path: string;
+  absPath: string;
+  name: string;
+  kind: GitChangeKind;
+  staged: boolean;
+  origPath?: string | null;
+}
+
+export interface GitRepo {
+  root: string;
+  branch: string;
+  ahead: number;
+  behind: number;
+  upstream?: string | null;
+  staged: GitFile[];
+  unstaged: GitFile[];
+}
+
+export interface AgentPreset {
+  id: string;
+  label: string;
+  command: string;
+  args: string[];
+  /** Whether `command` resolves on PATH right now. */
+  available: boolean;
+  note: string;
+}
+
+export interface AgentChunk {
+  id: string;
+  stream: "stdout" | "stderr";
+  line: string;
+}
+
+export interface AgentDone {
+  id: string;
+  code: number | null;
+  error?: string | null;
+}
+
+export interface CheckpointInfo {
+  id: string;
+  /** `git` when backed by a tree object, `snapshot` outside a repository. */
+  mode: "git" | "snapshot";
+  truncated: boolean;
+}
+
+export interface AgentChange {
+  path: string;
+  absPath: string;
+  name: string;
+  kind: "modified" | "added" | "deleted";
+  /** False when the checkpoint cannot prove what the file looked like before. */
+  revertible: boolean;
+}
+
+export type ChatRole = "you" | "agent" | "system";
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  text: string;
+  /** Set on agent turns while output is still streaming in. */
+  streaming?: boolean;
+  /** Files this turn changed, resolved once the run finishes. */
+  changes?: AgentChange[];
+  checkpoint?: string;
+  failed?: boolean;
+}
+
+/** A file open in the code editor. */
+export interface EditorDoc {
+  path: string;
+  name: string;
+  /** Contents as loaded from disk — compared against the buffer for dirtiness. */
+  saved: string;
+  language: string;
+  readonly?: boolean;
 }
 
 export interface OpenApp {

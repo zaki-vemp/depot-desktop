@@ -23,6 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 
+# Vendored at Linux build time by scripts/stage-linux-vlc.sh — not source.
+src-tauri/vlc-runtime/**
+!src-tauri/vlc-runtime/.gitkeep
+
 # Never commit credentials: Depot keeps provider secrets and OAuth tokens in the
 # OS app-data directory, and nothing of the sort belongs in this repository.
 .env

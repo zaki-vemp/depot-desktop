@@ -40,6 +40,11 @@ sysinfo = { version = "0.33", default-features = false, features = ["disk"] }
 calamine = "0.26"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 libloading = "0.8"
+# A real pty, not piped stdio: the built-in terminal has to run interactive
+# shells, curses programs and colour output the same way a native one does.
+portable-pty = "0.9"
+# Native folder picker for choosing a code-workspace root.
+tauri-plugin-dialog = "2"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
@@ -48,3 +53,16 @@ webview2-com = "0.38"
 gtk = { version = "0.18", features = ["v3_24"] }
 glib = "0.18"
 webkit2gtk = { version = "2", features = ["v2_40"] }
+
+# Leaner dev builds on every platform (Windows/macOS/Linux):
+# keeps line numbers in panic backtraces, but emits far less DWARF/PDB
+# debug info. This roughly halves the size of target/debug and prevents
+# linker failures (e.g. `ld terminated with signal 7 [Bus error]` on
+# SIGBUS when the disk is nearly full) on machines with little free space.
+[profile.dev]
+debug = "line-tables-only"
+
+# Same idea for the bundled release build: full backtraces, smaller artifacts.
+[profile.release]
+debug = "line-tables-only"
+strip = "debuginfo"

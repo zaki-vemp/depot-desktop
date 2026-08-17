@@ -8,6 +8,13 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // Monaco spawns its language workers with `{ type: "module" }`. Bundling
+  // them as classic workers instead keeps them working on older WKWebView
+  // builds on macOS, which predate module-worker support.
+  worker: {
+    format: "iife",
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

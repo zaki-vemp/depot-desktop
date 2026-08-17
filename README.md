@@ -64,11 +64,79 @@ webview, not a bundled Chromium.
 ### Previews and players
 
 - Video and audio player with scrubbing, volume, rate, loop, picture-in-picture and subtitles
-- Local video plays through **libvlc** (from your installed VLC), so MKV / AVI / HEVC and other
-  codecs a webview cannot decode play without converting
+- Local video plays through **libvlc**, so MKV / AVI / HEVC and other codecs a webview cannot
+  decode play without converting. Linux installers vendor the engine; macOS and Windows load
+  it from an installed VLC if present
 - Images, PDFs and text/code files render in-tab; Quick Look with <kbd>Space</kbd>
 - Office previews, read-only: `.xlsx` `.xlsm` `.xls` `.xlsb` `.ods` `.csv` `.tsv` as sheets,
   `.docx` `.odt` `.pptx` `.odp` as extracted text
+
+### Code editor and terminal
+
+- A **VS Code-style workspace tab**: explorer tree on the left, tabbed editor in the middle,
+  terminal docked at the bottom
+- **Pick the folder you want to work in** with a native folder chooser, and keep **as many
+  workspace tabs open as you like** — each with its own tree, its own editor tabs and its own
+  shells. Click the workspace name to point that tab at a different folder instead
+- The editor is **Monaco** — VS Code's own editor core — with syntax highlighting for ~90
+  languages, minimap, multi-cursor, find and replace, and per-file undo history
+- Edit and **save for real**: <kbd>⌘/Ctrl</kbd> + <kbd>S</kbd> writes the buffer to disk,
+  <kbd>⇧</kbd> saves every dirty file; unsaved tabs carry a dot and closing one asks first
+- Create files and folders, rename, trash and reveal straight from the explorer tree
+
+- The terminal is a **real pty** running your login shell, so prompts, colour, job control
+  and curses programs behave exactly as they do in a native terminal — multiple sessions per
+  workspace, resizable dock, <kbd>⌘/Ctrl</kbd> + <kbd>`</kbd> to toggle
+- Shell per platform: **macOS / Linux** run your login shell (`$SHELL`, then the passwd
+  database), started as a true login shell so `.zprofile` and your real `PATH` load — which
+  a macOS GUI app does not otherwise inherit. **Windows** prefers PowerShell 7 (`pwsh`),
+  then Windows PowerShell, then `ComSpec` (`cmd.exe`)
+- CRLF files stay CRLF: the editor keeps each file's own line endings on save
+- Workspaces stay alive in the background: switching Depot tabs never discards an unsaved
+  buffer or kills a running command
+- Open one from the sidebar (**Open folder…** / **Edit this folder**, plus a jump list of every
+  workspace you have open), from a folder or file's context menu, from the inspector, or from
+  the **Edit** button on any text preview
+
+#### AI chat agent
+
+- A **chat panel on the right of the code workspace** (<kbd>⌘/Ctrl</kbd> + <kbd>I</kbd>) that
+  drives **the agent CLI you already have installed and signed in** — Claude Code, Codex,
+  Copilot CLI, opencode, Cursor Agent, Gemini CLI, Aider, Kimi — in that tool's own
+  non-interactive mode, streaming its output as it works
+- **Depot is not an AI client.** It holds no API key and talks to no model. Whatever the CLI
+  is authenticated as, that is what runs. Installed CLIs are detected on your `PATH`;
+  the rest are greyed out
+- Every command line is **editable in the panel**, so a CLI that shipped after this build, or
+  one with different flags, works without waiting for a Depot release
+- **Every run is checkpointed first**, so nothing the agent does is irreversible. When it
+  finishes, the turn lists each file it changed
+- Click a changed file to **preview it as a diff** against the pre-run state, then **Keep** or
+  **Revert** it — per file, or all at once, exactly like Cursor and Copilot. Reverting restores
+  edited and deleted files and removes ones the agent created
+- Buffers you have open reload automatically after a run or a revert — unless you have unsaved
+  edits in them, which are never overwritten
+- In a git repository the checkpoint is a real tree object written through a *temporary* index,
+  so it respects `.gitignore` and leaves your own index and working tree untouched. Outside a
+  repository it falls back to a bounded content snapshot, and says so when coverage is partial
+
+#### Git source control
+
+- The left panel switches between **Explorer** and **Source control**, which lists what changed,
+  split into **Staged changes** and **Changes** the way git itself sees them
+- **Preview any change as a diff** in its own editor tab, side by side. Unstaged rows diff the
+  index against the working tree, and the right-hand side *is* the live buffer — so you can edit
+  and <kbd>⌘/Ctrl</kbd> + <kbd>S</kbd> straight from the diff. Staged rows diff HEAD against the
+  index, and are read-only because the index is a snapshot
+- **Change gutter** beside the line numbers marks every added, modified and deleted line against
+  HEAD, updating as you type rather than only after a save, with `+n −m` in the status bar
+- Changed files are tinted and lettered (`M` `A` `D` `R` `U` `!`) in the explorer tree too
+- **Stage**, **unstage**, **discard** per file or all at once, and **commit** from the panel
+  (<kbd>⌘/Ctrl</kbd> + <kbd>Enter</kbd> in the message box). Branch, upstream and ahead/behind
+  counts show in both the panel and the status bar
+- Discarding always asks first, and says plainly when untracked files will be deleted outright
+- Runs the `git` binary you already have, so your config, hooks, credentials, worktrees and LFS
+  all apply. No git installed, or not a repository? The panel says so and nothing else changes
 
 ### Cloud drives
 
@@ -107,7 +175,7 @@ webview, not a bundled Chromium.
 | Node.js | 18 or newer |
 | Rust | stable toolchain via [rustup](https://rustup.rs) |
 | Webview | WebView2 (Windows), WebKitGTK (Linux), system WebKit (macOS) |
-| VLC | optional — [VLC Media Player](https://www.videolan.org/vlc/) for in-app video. Depot loads `libvlc` from the installed app; it is not bundled |
+| VLC | Linux `.deb` / `.rpm` / AppImage bundle libvlc. On macOS and Windows, install [VLC Media Player](https://www.videolan.org/vlc/) for in-app video |
 
 Linux also needs the Tauri system packages (Debian / Ubuntu):
 
@@ -136,6 +204,9 @@ The first Rust build takes a few minutes; later runs are incremental.
 ```bash
 npm run tauri build
 ```
+
+On Linux the build vendors libvlc into the installer, so video playback works without a
+separate VLC install.
 
 Output lands in `src-tauri/target/release/bundle/`:
 
@@ -235,6 +306,18 @@ search engine or indexer.
 | <kbd>F</kbd> | Toggle sidebar and inspector together |
 | <kbd>Esc</kbd> | Close menu, dialog or quick look |
 
+Inside a code workspace the editor owns the keyboard, and these apply instead:
+
+| Shortcut | Action |
+|---|---|
+| <kbd>⌘/Ctrl</kbd> + <kbd>S</kbd> | Save the current file |
+| <kbd>⌘/Ctrl</kbd> + <kbd>⇧</kbd> + <kbd>S</kbd> | Save every unsaved file |
+| <kbd>⌘/Ctrl</kbd> + <kbd>W</kbd> | Close the current editor tab |
+| <kbd>⌘/Ctrl</kbd> + <kbd>`</kbd> | Show or hide the terminal dock |
+| <kbd>⌘/Ctrl</kbd> + <kbd>I</kbd> | Show or hide the AI chat panel |
+| <kbd>⌘/Ctrl</kbd> + <kbd>Enter</kbd> | Send the chat message (in the prompt box) |
+| <kbd>⌘/Ctrl</kbd> + <kbd>F</kbd> | Find in file (Monaco) |
+
 ---
 
 ## Where Depot stores things
@@ -277,8 +360,11 @@ src/                     React 19 + TypeScript frontend
 ├─ types.ts              Shared types mirroring the Rust structs
 ├─ lib/
 │  ├─ files.ts           Extension → viewer/icon/kind mapping, byte and date formatting
-│  └─ icons.tsx          Chrome stroke icons + colour-coded file marks
-└─ views/                MediaPlayer, OfficePreview, OpenWith, Connections
+│  ├─ icons.tsx          Chrome stroke icons + colour-coded file marks
+│  ├─ diff.ts            Line diff driving the editor's change gutter
+│  └─ monaco.ts          Monaco worker wiring, Harbor editor themes, language detection
+└─ views/                CodeEditor, AgentChat, SourceControl, TerminalPanel,
+                         MediaPlayer, OfficePreview, OpenWith, Connections
 
 src-tauri/src/           Rust backend
 ├─ lib.rs                Command registration, app state wiring, window setup
@@ -290,15 +376,31 @@ src-tauri/src/           Rust backend
 ├─ office.rs             Spreadsheet and document text extraction
 ├─ openwith.rs           Installed application handlers per platform
 ├─ web.rs                Native child webviews for website and app tabs
+├─ terminal.rs           pty sessions for the built-in terminal (portable-pty)
+├─ git.rs                Status, diff revisions, stage/unstage/discard/commit
+├─ agents.rs             Agent CLI presets, PATH detection, spawn and stream
+├─ checkpoint.rs         Pre-run snapshots so agent edits can be kept or undone
 ├─ torrents.rs           librqbit session, add/pause/resume/list
 └─ state.rs              Settings model, load/save, cache directory
 
 design/                  The Claude Design project the interface came from (reference only)
 ```
 
-The frontend calls **57 Rust commands** across seven groups: filesystem, settings, Google
-Drive, transfers, web tabs, VLC playback, and torrents. `src/api.ts` is the single place
-where the IPC surface is declared, and `src/types.ts` mirrors the Rust payloads.
+The frontend calls **78 Rust commands** across twelve groups: filesystem, settings, Google
+Drive, transfers, web tabs, VLC playback, torrents, file editing, terminal sessions, git,
+agent CLIs, and checkpoints.
+`src/api.ts` is the single place where the IPC surface is declared, and `src/types.ts`
+mirrors the Rust payloads.
+
+Monaco is a few megabytes of parsed JavaScript, so `CodeEditor` is behind a lazy import:
+a session that never opens a code tab never loads it. Terminal output travels as
+base64 on the `term:data` event, which keeps a chunk that splits a UTF-8 sequence intact
+across the IPC hop.
+
+Monaco's workers are bundled as classic workers (`worker.format: "iife"` in
+`vite.config.ts`) rather than module workers, so they also run on older WKWebView builds
+on macOS. `MonacoEnvironment.getWorker` takes precedence over Monaco's own worker factory,
+so every worker goes through that one map in `src/lib/monaco.ts`.
 
 ---
 
@@ -327,16 +429,30 @@ cd src-tauri && cargo check
 Both checks — `tsc --noEmit` and `cargo check` — must pass before a pull request. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
+### Linux troubleshooting
+
+`src-tauri/src/main.rs` sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` automatically on Linux. Without
+it, WebKitGTK ≥ 2.40 tries to allocate GPU buffers through GBM/DMA-BUF, which the NVIDIA
+proprietary driver (notably the legacy 470 branch used by Kepler cards) does not support — the
+log fills with `Failed to create GBM buffer ... Permission denied` and the window stays blank.
+Export the variable yourself (e.g. `WEBKIT_DISABLE_DMABUF_RENDERER=0`) to override. Windows and
+macOS are unaffected; they use WebView2 and WKWebView instead of WebKitGTK. Harmless
+`libEGL warning: pci id ... driver (null)` lines may still appear on hybrid setups — they can
+be ignored.
+
 ---
 
 ## Status and roadmap
 
 **Working today:** local browsing and file operations, transfers with progress, previews and
-players, Office previews, Google Drive (multi-account), website and social app tabs,
-torrent downloads, light/dark themes.
+players, Office previews, the Monaco code editor with a pty-backed terminal, Google Drive
+(multi-account), website and social app tabs, torrent downloads, light/dark themes.
 
 **Next up:**
 
+- [ ] Editor: search across the workspace, format-on-save, blame
+- [ ] Git: branch switching, push/pull/fetch, stash, per-hunk staging
+- [ ] Agent chat: per-hunk keep/revert, structured streaming (JSON event modes), session resume
 - [ ] Native OneDrive adapter (credentials UI already in place)
 - [ ] Native Dropbox adapter
 - [ ] Native S3-compatible adapter
@@ -358,6 +474,7 @@ setup, project layout and PR checklist. Security reports go through
 
 [MIT](LICENSE) © 2026 Syed Zakiuddin
 
-Depot bundles no third-party binaries. `libvlc` is loaded from your own VLC install at
-runtime (VLC is LGPL-2.1+ / GPL-2.0+ and remains separate), and Rust and npm dependencies keep
-their own licenses.
+Linux installers vendor a **libvlc** runtime (VideoLAN, GPL-2.0+) next to the app and load it
+dynamically; copyright files ship in `vlc-runtime/licenses`. macOS and Windows still load
+`libvlc` from a user-installed VLC when present. Rust and npm dependencies keep their own
+licenses.

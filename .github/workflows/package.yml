@@ -90,6 +90,12 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Vendors libvlc + plugins into the Linux installers so video works
+      # without a separate VLC install. No-op on macOS/Windows.
+      - name: Stage bundled libvlc
+        if: runner.os == 'Linux'
+        run: bash scripts/stage-linux-vlc.sh --force
+
       - name: Build installers
         run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.tauri-args }}
 

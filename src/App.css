@@ -2167,3 +2167,1017 @@ a:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── code workspace ─────────────────────────────────────────────────────────
+   Explorer, Monaco and the terminal dock. Everything reads from the same
+   Harbor tokens as the rest of the shell, so a code tab is not a foreign body
+   inside the file manager. */
+
+.editor-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
+.code-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.code-explorer {
+  width: 232px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-divider);
+}
+.code-explorer-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px 8px 12px;
+  border-bottom: 1px solid var(--color-divider);
+}
+/* The workspace name doubles as the "edit a different folder" control. */
+.code-explorer-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 3px 5px;
+  margin-left: -5px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--color-neutral-700);
+  cursor: pointer;
+}
+.code-explorer-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code-explorer-title svg {
+  flex: none;
+  opacity: 0.6;
+}
+.code-explorer-title:hover {
+  background: var(--color-neutral-300);
+  color: var(--color-text);
+}
+
+.icon-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-600);
+  cursor: pointer;
+}
+.icon-mini:hover {
+  background: var(--color-neutral-300);
+  color: var(--color-text);
+}
+
+.code-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 4px 12px;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px 3px 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.tree-row:hover {
+  background: var(--color-neutral-300);
+}
+.tree-row.on {
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+.tree-row > svg {
+  flex: none;
+  color: var(--color-neutral-600);
+}
+.tree-row.on > svg {
+  color: var(--color-accent);
+}
+.tree-twist {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  flex: none;
+  color: var(--color-neutral-600);
+}
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-loading {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--color-neutral-600);
+}
+
+.code-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 4px 6px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-divider);
+  overflow-x: auto;
+}
+.code-tabs::-webkit-scrollbar {
+  height: 0;
+}
+.code-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 200px;
+  padding: 5px 6px 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  color: var(--color-neutral-700);
+  cursor: pointer;
+}
+.code-tab:hover {
+  background: var(--color-neutral-300);
+}
+.code-tab.on {
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+.code-tab > svg {
+  flex: none;
+  color: var(--color-neutral-600);
+}
+.code-tab .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.code-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-600);
+  cursor: pointer;
+}
+.code-tab-close:hover {
+  background: var(--color-neutral-400);
+  color: var(--color-text);
+}
+/* An unsaved buffer shows a dot until the pointer offers the close cross. */
+.code-tab-close.dirty .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.code-editor-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.code-monaco {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.code-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-neutral-600);
+}
+.code-empty p {
+  margin: 0;
+  max-width: 380px;
+  font-size: 13px;
+}
+
+.code-dock-grip {
+  height: 6px;
+  flex: none;
+  cursor: row-resize;
+  background: var(--color-divider);
+}
+.code-dock-grip:hover {
+  background: var(--color-accent-300);
+}
+body.row-resizing {
+  cursor: row-resize;
+  user-select: none;
+}
+
+.code-dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-divider);
+}
+.code-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 5px 8px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-divider);
+}
+.code-dock-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  margin-right: 6px;
+}
+.code-dock-cwd {
+  font-size: 11.5px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}
+.term-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 3px 6px 3px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-700);
+  font-size: 12px;
+  cursor: pointer;
+}
+.term-tab:hover {
+  background: var(--color-neutral-300);
+}
+.term-tab.on {
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+.term-tab-close {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-neutral-600);
+}
+.term-tab-close:hover {
+  color: var(--color-text);
+}
+
+.code-dock-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.code-term-slot {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.term {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 6px 4px 4px 8px;
+  background: var(--color-bg);
+}
+.term-surface {
+  width: 100%;
+  height: 100%;
+}
+.term .xterm-viewport {
+  background: transparent !important;
+}
+.term-restart {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12.5px;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+.term-restart:hover {
+  background: var(--color-neutral-300);
+}
+
+.code-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  padding: 4px 12px;
+  font-size: 11.5px;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-divider);
+}
+.code-status .spacer {
+  flex: 1;
+}
+
+@media (max-width: 1080px) {
+  .code-explorer {
+    width: 180px;
+  }
+}
+
+/* ── source control ─────────────────────────────────────────────────────────
+   The left panel switches between the file tree and git. Marks reuse the
+   file-type palette so M/A/D read the same as the rest of the app. */
+
+.code-side-switch {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 6px 6px 0;
+}
+.side-switch-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--color-neutral-700);
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* The icon and the change count must never be the thing that gets cut;
+   only the label may shrink. */
+.side-switch-opt svg,
+.side-switch-opt .side-switch-badge {
+  flex: none;
+}
+.side-switch-opt .side-switch-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.side-switch-opt:hover {
+  background: var(--color-neutral-300);
+  color: var(--color-text);
+}
+.side-switch-opt.on {
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+  font-weight: 600;
+}
+.side-switch-badge {
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.code-explorer-title.as-label {
+  cursor: default;
+  margin-left: 0;
+}
+.code-explorer-title.as-label:hover {
+  background: none;
+  color: var(--color-neutral-700);
+}
+
+.scm {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.scm-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 8px 6px 6px 12px;
+}
+.scm-branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 0 12px 8px;
+  font-size: 12px;
+  color: var(--color-neutral-700);
+  border-bottom: 1px solid var(--color-divider);
+}
+.scm-branch svg {
+  flex: none;
+  color: var(--color-accent);
+}
+.scm-branch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.scm-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: none;
+  padding: 10px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.scm-message {
+  width: 100%;
+  resize: vertical;
+  min-height: 46px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.scm-commit .btn {
+  gap: 6px;
+}
+
+.scm-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+.scm-section-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 8px 4px 8px;
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  z-index: 1;
+}
+.scm-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 2px 0;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  cursor: pointer;
+  text-align: left;
+}
+.scm-count {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-400);
+  color: var(--color-neutral-900);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.scm-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.scm-row:hover {
+  background: var(--color-neutral-300);
+}
+.scm-row.on {
+  background: var(--color-accent-100);
+}
+.scm-name {
+  flex: none;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text);
+}
+.scm-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-size: 11px;
+  color: var(--color-neutral-600);
+}
+/* Row actions only appear on hover, the way VS Code's do. */
+.scm-actions {
+  display: none;
+  flex: none;
+  gap: 0;
+}
+.scm-row:hover .scm-actions {
+  display: flex;
+}
+.scm-row:hover .scm-dir {
+  display: none;
+}
+.icon-mini.danger:hover {
+  background: var(--ft-pdf);
+  color: #fff;
+}
+.scm-mark {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.scm-mark.mod {
+  color: var(--color-accent);
+}
+.scm-mark.add,
+.scm-mark.new {
+  color: var(--ft-sheet);
+}
+.scm-mark.del {
+  color: var(--ft-pdf);
+}
+.scm-mark.conflict {
+  color: var(--ft-slides);
+}
+.scm-clean {
+  padding: 16px 12px;
+  font-size: 12.5px;
+  color: var(--color-neutral-600);
+}
+
+/* Git state in the file tree. */
+.tree-git {
+  flex: none;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.tree-row.git-modified .tree-name,
+.tree-row.git-modified .tree-git {
+  color: var(--color-accent);
+}
+.tree-row.git-added .tree-name,
+.tree-row.git-added .tree-git,
+.tree-row.git-untracked .tree-name,
+.tree-row.git-untracked .tree-git {
+  color: var(--ft-sheet);
+}
+.tree-row.git-deleted .tree-name,
+.tree-row.git-deleted .tree-git {
+  color: var(--ft-pdf);
+  text-decoration: line-through;
+}
+.tree-row.git-conflicted .tree-name,
+.tree-row.git-conflicted .tree-git {
+  color: var(--ft-slides);
+}
+
+/* Change gutter inside Monaco: a bar per changed line, against HEAD. */
+.gutter-mark {
+  width: 3px !important;
+  left: 3px !important;
+}
+.gutter-mark.add {
+  background: var(--ft-sheet);
+}
+.gutter-mark.mod {
+  background: var(--color-accent);
+}
+.gutter-mark.del {
+  background: none;
+  border-bottom: 2px solid var(--ft-pdf);
+}
+.gutter-mark.del.at-top {
+  border-bottom: 0;
+  border-top: 2px solid var(--ft-pdf);
+}
+
+.code-tab-kind {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-400);
+  color: var(--color-neutral-800);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.code-status-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-300);
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.code-status-branch:hover {
+  background: var(--color-accent-100);
+  color: var(--color-accent-700);
+}
+.code-status-branch svg {
+  color: var(--color-accent);
+}
+.code-status-diff {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.code-status-diff .add {
+  color: var(--ft-sheet);
+}
+.code-status-diff .del {
+  color: var(--ft-pdf);
+}
+
+/* ── agent chat ─────────────────────────────────────────────────────────────
+   The right dock. Depot runs the user's own agent CLI and shows what it did;
+   every changed file gets Keep / Revert next to it. */
+
+.code-side-grip {
+  width: 6px;
+  flex: none;
+  cursor: col-resize;
+  background: var(--color-divider);
+}
+.code-side-grip:hover {
+  background: var(--color-accent-300);
+}
+body.col-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.code-chat {
+  flex: none;
+  min-width: 0;
+  display: flex;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-divider);
+}
+.agent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 8px 6px 6px 12px;
+  border-bottom: 1px solid var(--color-divider);
+}
+.agent-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 8px 10px 4px;
+}
+.agent-picker .input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  padding: 5px 8px;
+}
+.agent-note {
+  flex: none;
+  padding: 0 12px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-neutral-600);
+}
+.agent-args {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: none;
+  padding: 0 10px 10px;
+}
+.agent-args label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+.agent-args .input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+}
+.agent-args-cmd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--color-neutral-600);
+  word-break: break-all;
+}
+
+.agent-transcript {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.agent-empty {
+  margin: auto;
+  padding: 20px 8px;
+  text-align: center;
+  color: var(--color-neutral-600);
+}
+.agent-empty p {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.agent-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.agent-msg-role {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+.agent-msg.you .agent-msg-role {
+  color: var(--color-accent);
+}
+.agent-msg.failed .agent-msg-role {
+  color: var(--ft-pdf);
+}
+.agent-msg-body {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 420px;
+  overflow: auto;
+}
+.agent-msg.you .agent-msg-body {
+  background: var(--color-accent-100);
+  border-color: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+/* Three dots that pulse while the CLI is still producing output. */
+.agent-dots {
+  width: 22px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  animation: agent-pulse 1.1s ease-in-out infinite;
+}
+@keyframes agent-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-dots { animation: none; opacity: 0.7; }
+}
+
+.agent-changes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+}
+.agent-changes-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 2px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+.agent-changes-head .spacer {
+  flex: 1;
+}
+.agent-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+}
+.agent-change:hover {
+  background: var(--color-neutral-300);
+}
+.agent-change-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 3px 4px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+.agent-change-name {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-change-dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  font-size: 10.5px;
+  color: var(--color-neutral-600);
+}
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg);
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.agent-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.agent-chip.keep:hover:not(:disabled) {
+  background: var(--color-accent-2-100);
+  border-color: var(--color-accent-2);
+  color: var(--color-accent-2-700);
+}
+.agent-chip.revert:hover:not(:disabled) {
+  background: var(--ft-pdf);
+  border-color: var(--ft-pdf);
+  color: #fff;
+}
+
+.agent-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: none;
+  padding: 10px;
+  border-top: 1px solid var(--color-divider);
+}
+.agent-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 62px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.agent-compose-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-compose-row .spacer {
+  flex: 1;
+}
+.agent-cwd {
+  font-size: 10.5px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+}

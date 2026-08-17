@@ -5,8 +5,9 @@ Thanks for taking a look. Issues, ideas and pull requests are all welcome.
 ## Getting set up
 
 You need Node.js 18+, a stable Rust toolchain from [rustup](https://rustup.rs), and — on
-Linux — the Tauri system packages listed in the [README](README.md#requirements). VLC is
-optional but needed to test in-app video.
+Linux — the Tauri system packages listed in the [README](README.md#requirements). The first
+Linux compile vendors libvlc into `src-tauri/vlc-runtime` so in-app video works without a
+system VLC install.
 
 ```bash
 npm install

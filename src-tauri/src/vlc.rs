@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 
+use crate::webview_layout;
+
 const SURFACE: &str = "depot-vlc";
-const OFFSCREEN: f64 = -20000.0;
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -125,7 +126,7 @@ pub fn available() -> VlcInfo {
         None => VlcInfo {
             available: false,
             version: None,
-            message: "Install VLC Media Player to play local video in Depot.".into(),
+            message: "The bundled video engine is missing from this install.".into(),
         },
     }
 }
@@ -173,12 +174,10 @@ pub fn set_bounds(app: &AppHandle, x: f64, y: f64, width: f64, height: f64) -> R
 
 pub fn hide(app: &AppHandle) -> Result<(), String> {
     pause()?;
-    if let Some(webview) = app.get_webview(SURFACE) {
-        webview
-            .set_position(LogicalPosition::new(OFFSCREEN, OFFSCREEN))
-            .map_err(|e| e.to_string())?;
+    if app.get_webview(SURFACE).is_none() {
+        return Ok(());
     }
-    Ok(())
+    webview_layout::park(app, SURFACE)
 }
 
 pub fn close(app: &AppHandle, token: String) -> Result<(), String> {
@@ -411,21 +410,21 @@ fn start_media(api: &Api, eng: &mut Engine, src: &Path) -> Result<(), String> {
 }
 
 fn new_instance(api: &Api) -> Result<*mut c_void, String> {
-    let args = [
+    let mut args = vec![
         CString::new("--intf=dummy").unwrap(),
         CString::new("--no-video-title-show").unwrap(),
         CString::new("--quiet").unwrap(),
         CString::new("--no-osd").unwrap(),
         CString::new("--no-stats").unwrap(),
-        #[cfg(any(
-            target_os = "linux",
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        ))]
-        CString::new("--no-xlib").unwrap(),
     ];
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
+    args.push(CString::new("--no-xlib").unwrap());
     let ptrs: Vec<*const c_char> = args.iter().map(|s| s.as_ptr()).collect();
     let inst = unsafe { (api.new)(ptrs.len() as c_int, ptrs.as_ptr()) };
     if inst.is_null() {
@@ -452,19 +451,17 @@ fn ensure_surface(app: &AppHandle, x: f64, y: f64, width: f64, height: f64) -> R
             LogicalSize::new(width.max(1.0), height.max(1.0)),
         )
         .map_err(|e| e.to_string())?;
-    Ok(())
+    // Adopt before binding libvlc: re-parenting the surface later would hand VLC
+    // a drawable that no longer exists.
+    webview_layout::adopt(app, SURFACE)?;
+    place(app, x, y, width, height)
 }
 
 fn place(app: &AppHandle, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
-    let Some(webview) = app.get_webview(SURFACE) else {
+    if app.get_webview(SURFACE).is_none() {
         return Ok(());
-    };
-    webview
-        .set_size(LogicalSize::new(width.max(1.0), height.max(1.0)))
-        .map_err(|e| e.to_string())?;
-    webview
-        .set_position(LogicalPosition::new(x, y))
-        .map_err(|e| e.to_string())
+    }
+    webview_layout::place(app, SURFACE, x, y, width, height)
 }
 
 fn bind_output(app: &AppHandle) -> Result<(), String> {
@@ -535,6 +532,9 @@ fn windows_hwnd(platform: &tauri::webview::PlatformWebview) -> Option<*mut c_voi
     target_os = "openbsd"
 ))]
 fn linux_xid(platform: &tauri::webview::PlatformWebview) -> Option<u32> {
+    // `as_ptr` comes from glib's ObjectType, which is not in scope by default.
+    use glib::object::ObjectType;
+
     let widget = platform.inner();
     let widget_ptr = widget.as_ptr() as *mut c_void;
     let window_ptr = unsafe { gtk_widget_get_window(widget_ptr) };
@@ -559,25 +559,25 @@ extern "C" {
 
 fn load_api() -> Result<Api, String> {
     let (lib_path, plugins) = locate_libvlc().ok_or_else(|| {
-        "VLC is not installed. Install VLC Media Player, then reopen this tab.".to_string()
+        "The bundled video engine is missing. Rebuild the Linux package (it vendors libvlc) or install VLC.".to_string()
     })?;
     std::env::set_var("VLC_PLUGIN_PATH", &plugins);
     if let Some(dir) = lib_path.parent() {
         prepend_path(dir);
     }
-    let core = lib_path
-        .parent()
-        .map(|dir| {
-            let name = if cfg!(windows) {
-                "libvlccore.dll"
-            } else if cfg!(target_os = "macos") {
-                "libvlccore.dylib"
-            } else {
-                "libvlccore.so.9"
-            };
-            dir.join(name)
+    let core = lib_path.parent().and_then(|dir| {
+        let names = if cfg!(windows) {
+            vec!["libvlccore.dll"]
+        } else if cfg!(target_os = "macos") {
+            vec!["libvlccore.dylib"]
+        } else {
+            vec!["libvlccore.so.9", "libvlccore.so.5", "libvlccore.so"]
+        };
+        names.into_iter().find_map(|name| {
+            let path = dir.join(name);
+            unsafe { libloading::Library::new(&path).ok() }
         })
-        .and_then(|p| unsafe { libloading::Library::new(&p).ok() });
+    });
     let lib = unsafe {
         libloading::Library::new(&lib_path).map_err(|e| format!("Could not load libvlc: {e}"))?
     };
@@ -645,8 +645,55 @@ fn load_api() -> Result<Api, String> {
     }
 }
 
-fn locate_libvlc() -> Option<(PathBuf, PathBuf)> {
+fn libvlc_filename() -> &'static str {
+    if cfg!(windows) {
+        "libvlc.dll"
+    } else if cfg!(target_os = "macos") {
+        "libvlc.dylib"
+    } else {
+        "libvlc.so.5"
+    }
+}
+
+fn bundled_libvlc_candidates() -> Vec<PathBuf> {
+    let name = libvlc_filename();
     let mut libs = Vec::new();
+    libs.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("vlc-runtime")
+            .join(name),
+    );
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.canonicalize().unwrap_or(exe);
+        if let Some(dir) = exe.parent() {
+            libs.push(dir.join("vlc-runtime").join(name));
+            libs.push(dir.join(name));
+            if let Some(prefix) = dir.parent() {
+                for pkg in ["Depot", "depot"] {
+                    libs.push(
+                        prefix
+                            .join("lib")
+                            .join(pkg)
+                            .join("vlc-runtime")
+                            .join(name),
+                    );
+                    libs.push(prefix.join("lib").join(pkg).join(name));
+                }
+            }
+        }
+    }
+    if let Ok(appdir) = std::env::var("APPDIR") {
+        let root = PathBuf::from(appdir);
+        for pkg in ["Depot", "depot"] {
+            libs.push(root.join("usr/lib").join(pkg).join("vlc-runtime").join(name));
+            libs.push(root.join("usr/lib").join(pkg).join(name));
+        }
+    }
+    libs
+}
+
+fn locate_libvlc() -> Option<(PathBuf, PathBuf)> {
+    let mut libs = bundled_libvlc_candidates();
     #[cfg(target_os = "macos")]
     {
         libs.push(PathBuf::from(
@@ -665,7 +712,7 @@ fn locate_libvlc() -> Option<(PathBuf, PathBuf)> {
         }
         libs.push(PathBuf::from(r"C:\Program Files\VideoLAN\VLC\libvlc.dll"));
     }
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         libs.push(PathBuf::from("/usr/lib/x86_64-linux-gnu/libvlc.so.5"));
         libs.push(PathBuf::from("/usr/lib/aarch64-linux-gnu/libvlc.so.5"));
@@ -674,13 +721,7 @@ fn locate_libvlc() -> Option<(PathBuf, PathBuf)> {
     }
     if let Ok(path) = std::env::var("PATH") {
         let sep = if cfg!(windows) { ';' } else { ':' };
-        let libname = if cfg!(windows) {
-            "libvlc.dll"
-        } else if cfg!(target_os = "macos") {
-            "libvlc.dylib"
-        } else {
-            "libvlc.so.5"
-        };
+        let libname = libvlc_filename();
         for dir in path.split(sep) {
             libs.push(PathBuf::from(dir).join(libname));
             let parent = PathBuf::from(dir);
@@ -710,12 +751,19 @@ fn plugins_for(lib: &Path) -> Option<PathBuf> {
         dir.parent().map(|p| p.join("plugins")).unwrap_or_default(),
         dir.join("vlc/plugins"),
         PathBuf::from("/usr/lib/x86_64-linux-gnu/vlc/plugins"),
+        PathBuf::from("/usr/lib/aarch64-linux-gnu/vlc/plugins"),
         PathBuf::from("/usr/lib/vlc/plugins"),
     ];
     candidates.into_iter().find(|p| p.is_dir())
 }
 
 fn prepend_path(dir: &Path) {
+    // Linux uses DT_RUNPATH ($ORIGIN) on the vendored libs instead. Putting this
+    // directory on LD_LIBRARY_PATH would let codec libs shadow GTK/WebKit.
+    if cfg!(all(unix, not(target_os = "macos"))) {
+        let _ = dir;
+        return;
+    }
     let key = if cfg!(windows) {
         "PATH"
     } else if cfg!(target_os = "macos") {
@@ -742,12 +790,28 @@ mod tests {
     use super::locate_libvlc;
 
     #[test]
-    fn finds_system_vlc_when_installed() {
+    fn finds_bundled_or_system_vlc() {
         if locate_libvlc().is_none() {
             return;
         }
         let (lib, plugins) = locate_libvlc().unwrap();
         assert!(lib.is_file());
         assert!(plugins.is_dir());
+    }
+
+    #[test]
+    fn bundled_libvlc_creates_instance() {
+        let api = super::api().expect("libvlc API should load from vlc-runtime");
+        let inst = super::new_instance(api);
+        assert!(inst.is_ok(), "{inst:?}");
+    }
+
+    #[test]
+    fn bundled_libvlc_loads() {
+        let Some((lib, _)) = locate_libvlc() else {
+            return;
+        };
+        let loaded = unsafe { libloading::Library::new(&lib) };
+        assert!(loaded.is_ok(), "could not load {}: {loaded:?}", lib.display());
     }
 }

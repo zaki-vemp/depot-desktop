@@ -1,13 +1,18 @@
+mod agents;
+mod checkpoint;
 mod drive;
 mod files;
+mod git;
 mod media;
 mod office;
 mod openwith;
 mod state;
+mod terminal;
 mod torrents;
 mod transfers;
 mod vlc;
 mod web;
+mod webview_layout;
 
 use files::{DirEntry, DiskUsage};
 use state::{AppState, PublicAccount, PublicSettings, Settings};
@@ -32,6 +37,21 @@ fn list_dir(path: String) -> Result<Vec<DirEntry>, String> {
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
     files::read_text(&path, 2 * 1024 * 1024)
+}
+
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    files::write_text(&path, &contents)
+}
+
+#[tauri::command]
+fn create_file(path: String) -> Result<(), String> {
+    files::create_file(&path)
+}
+
+#[tauri::command]
+fn is_text_file(path: String) -> Result<bool, String> {
+    files::is_text_file(&path, 8192)
 }
 
 #[tauri::command]
@@ -360,6 +380,103 @@ async fn subtitle_vtt(state: State<'_, AppState>, path: String, track_id: String
 }
 
 #[tauri::command]
+async fn git_info(cwd: String) -> Result<Option<git::GitRepo>, String> {
+    git::info(cwd).await
+}
+
+#[tauri::command]
+async fn git_show(root: String, rev: String, path: String) -> Result<String, String> {
+    git::show(root, rev, path).await
+}
+
+#[tauri::command]
+async fn git_stage(root: String, paths: Vec<String>) -> Result<(), String> {
+    git::stage(root, paths).await
+}
+
+#[tauri::command]
+async fn git_unstage(root: String, paths: Vec<String>) -> Result<(), String> {
+    git::unstage(root, paths).await
+}
+
+#[tauri::command]
+async fn git_discard(root: String, paths: Vec<String>) -> Result<(), String> {
+    git::discard(root, paths).await
+}
+
+#[tauri::command]
+async fn git_commit(root: String, message: String, amend: bool) -> Result<String, String> {
+    git::commit(root, message, amend).await
+}
+
+#[tauri::command]
+fn agent_list() -> Vec<agents::AgentPreset> {
+    agents::list()
+}
+
+#[tauri::command]
+async fn agent_run(
+    app: AppHandle,
+    id: String,
+    command: String,
+    args: Vec<String>,
+    cwd: String,
+    prompt: String,
+) -> Result<(), String> {
+    agents::run(&app, id, command, args, cwd, prompt).await
+}
+
+#[tauri::command]
+async fn agent_cancel(id: String) -> Result<(), String> {
+    agents::cancel(id).await
+}
+
+#[tauri::command]
+async fn checkpoint_create(root: String) -> Result<checkpoint::CheckpointInfo, String> {
+    checkpoint::create(root).await
+}
+
+#[tauri::command]
+async fn checkpoint_changes(id: String) -> Result<Vec<checkpoint::ChangedFile>, String> {
+    checkpoint::changes(id).await
+}
+
+#[tauri::command]
+async fn checkpoint_original(id: String, path: String) -> Result<String, String> {
+    checkpoint::original(id, path).await
+}
+
+#[tauri::command]
+async fn checkpoint_revert(id: String, paths: Vec<String>) -> Result<(), String> {
+    checkpoint::revert(id, paths).await
+}
+
+#[tauri::command]
+fn checkpoint_discard(id: String) {
+    checkpoint::discard(id)
+}
+
+#[tauri::command]
+fn term_open(app: AppHandle, id: String, cwd: String, cols: u16, rows: u16) -> Result<(), String> {
+    terminal::open(&app, id, cwd, cols, rows)
+}
+
+#[tauri::command]
+fn term_write(id: String, data: String) -> Result<(), String> {
+    terminal::write(&id, &data)
+}
+
+#[tauri::command]
+fn term_resize(id: String, cols: u16, rows: u16) -> Result<(), String> {
+    terminal::resize(&id, cols, rows)
+}
+
+#[tauri::command]
+fn term_close(id: String) -> Result<(), String> {
+    terminal::close(&id)
+}
+
+#[tauri::command]
 async fn add_torrent(state: State<'_, AppState>, magnet: String) -> Result<String, String> {
     torrents::add_magnet(&state, &magnet).await
 }
@@ -383,9 +500,11 @@ async fn resume_torrent(state: State<'_, AppState>, id: usize) -> Result<(), Str
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let dir = app.path().app_data_dir().unwrap_or_else(|_| PathBuf::from("."));
             app.manage(AppState::new(dir));
+            webview_layout::prepare(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -393,6 +512,9 @@ pub fn run() {
             get_home,
             list_dir,
             read_text_file,
+            write_text_file,
+            create_file,
+            is_text_file,
             mkdir,
             rename_path,
             remove_path,
@@ -442,6 +564,24 @@ pub fn run() {
             vlc_set_subtitle,
             list_subtitles,
             subtitle_vtt,
+            git_info,
+            git_show,
+            git_stage,
+            git_unstage,
+            git_discard,
+            git_commit,
+            agent_list,
+            agent_run,
+            agent_cancel,
+            checkpoint_create,
+            checkpoint_changes,
+            checkpoint_original,
+            checkpoint_revert,
+            checkpoint_discard,
+            term_open,
+            term_write,
+            term_resize,
+            term_close,
             add_torrent,
             list_torrents,
             pause_torrent,
