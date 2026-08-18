@@ -264,6 +264,23 @@ pub fn remove_path(path: &str) -> Result<(), String> {
     }
 }
 
+/// The files of a selection that exist on this computer, for the handoffs that
+/// only understand real paths — the system clipboard and a drag into another
+/// app. Drive entries are addressed by a `gdrive://` URL that nothing outside
+/// Depot can open, so they are dropped rather than handed over broken.
+pub fn local_files(paths: &[String]) -> Result<Vec<PathBuf>, String> {
+    let files: Vec<PathBuf> = paths
+        .iter()
+        .filter(|path| !path.contains("://"))
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
+        .collect();
+    if files.is_empty() {
+        return Err("Only files on this computer can leave Depot — copy Drive items to a local folder first.".into());
+    }
+    Ok(files)
+}
+
 pub fn copy_path(from: &str, to: &str) -> Result<(), String> {
     let src = Path::new(from);
     let dest = Path::new(to);

@@ -46,8 +46,33 @@ portable-pty = "0.9"
 # Native folder picker for choosing a code-workspace root.
 tauri-plugin-dialog = "2"
 
+# Dragging files out of the window. GTK is handled in `dragout.rs` instead,
+# because this crate emits unescaped `file://` URIs, which drops every name
+# containing a space.
+[target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
+drag = "2.1"
+
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
+# `CF_HDROP` on the clipboard: the only way Explorer accepts a file list.
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_UI_Shell",
+] }
+
+# File URLs on `NSPasteboard`, which is what Finder pastes.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["std", "NSPasteboard"] }
+objc2-foundation = { version = "0.3", features = [
+  "std",
+  "NSArray",
+  "NSString",
+  "NSURL",
+] }
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
 gtk = { version = "0.18", features = ["v3_24"] }

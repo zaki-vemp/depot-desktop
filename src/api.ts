@@ -42,6 +42,11 @@ export const api = {
   trash: (path: string) => invoke<void>("trash_path", { path }),
   copy: (from: string, to: string) => invoke<void>("copy_path", { from, to }),
   move: (from: string, to: string) => invoke<void>("move_path", { from, to }),
+  /** Starts a native drag, so the files can be dropped into any other app. */
+  startDrag: (paths: string[]) => invoke<void>("start_file_drag", { paths }),
+  /** Puts files on the system clipboard, ready to paste outside Depot. */
+  clipboardCopyFiles: (paths: string[], cut: boolean) =>
+    invoke<void>("clipboard_copy_files", { paths, cut }),
   parent: (path: string) => invoke<string | null>("parent_path", { path }),
   /** Native folder chooser; resolves to null when the user cancels. */
   pickFolder: async (title: string, defaultPath?: string) => {

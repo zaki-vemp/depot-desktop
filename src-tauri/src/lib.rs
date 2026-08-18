@@ -1,5 +1,7 @@
 mod agents;
 mod checkpoint;
+mod clipboard;
+mod dragout;
 mod drive;
 mod files;
 mod git;
@@ -77,6 +79,24 @@ fn copy_path(from: String, to: String) -> Result<(), String> {
 #[tauri::command]
 fn move_path(from: String, to: String) -> Result<(), String> {
     files::move_path(&from, &to)
+}
+
+/// Starts a native drag for the selection. It returns as soon as the platform
+/// owns the gesture — the drop itself happens in whichever app receives it.
+#[tauri::command]
+fn start_file_drag(window: tauri::WebviewWindow, paths: Vec<String>) -> Result<(), String> {
+    dragout::start(&window, files::local_files(&paths)?)
+}
+
+/// Puts the selection on the system clipboard, so it can be pasted into any
+/// file manager. `cut` asks the receiver to move instead of copy.
+#[tauri::command]
+async fn clipboard_copy_files(
+    app: AppHandle,
+    paths: Vec<String>,
+    cut: bool,
+) -> Result<(), String> {
+    clipboard::copy_files(&app, files::local_files(&paths)?, cut).await
 }
 
 #[tauri::command]
@@ -535,6 +555,8 @@ pub fn run() {
             disk_usage,
             copy_path,
             move_path,
+            start_file_drag,
+            clipboard_copy_files,
             parent_path,
             open_in_system,
             reveal_in_dir,

@@ -642,6 +642,44 @@ export default function App() {
     [entries, selected],
   );
 
+  /**
+   * Copy and Cut answer twice: Depot's own clipboard is what Paste reads
+   * between tabs, and the system clipboard is what lets Files, Finder or
+   * Explorer paste the same selection. Drive entries stay behind — they have
+   * no path the rest of the desktop can open.
+   */
+  const putOnClipboard = useCallback(
+    (mode: "copy" | "cut") => {
+      const items = selectedEntries();
+      if (!items.length) return;
+      setClipboard({ mode, items });
+      const paths = items.filter((e) => e.source === "local").map((e) => e.path);
+      if (paths.length) {
+        void api.clipboardCopyFiles(paths, mode === "cut").catch((e) => setError(String(e)));
+      }
+    },
+    [selectedEntries],
+  );
+
+  /**
+   * Dragging out of the window. The webview's own drag can only carry text, so
+   * it is cancelled here and the platform starts a real file drag instead —
+   * dropping on another app hands it the files themselves.
+   */
+  const beginDrag = useCallback(
+    (event: React.DragEvent, entry: DirEntry) => {
+      event.preventDefault();
+      const dragged = selected.includes(entry.path) ? selectedEntries() : [entry];
+      const paths = dragged.filter((e) => e.source === "local").map((e) => e.path);
+      if (!paths.length) {
+        setError("Drive items cannot be dragged out — copy them to a local folder first.");
+        return;
+      }
+      void api.startDrag(paths).catch((e) => setError(String(e)));
+    },
+    [selected, selectedEntries],
+  );
+
   const openEntry = useCallback(
     async (entry: DirEntry) => {
       if (entry.isDir) {
@@ -906,9 +944,9 @@ export default function App() {
       if (typing || activeKind !== "files") return;
 
       if (meta && key === "c") {
-        setClipboard({ mode: "copy", items: selectedEntries() });
+        putOnClipboard("copy");
       } else if (meta && key === "x") {
-        setClipboard({ mode: "cut", items: selectedEntries() });
+        putOnClipboard("cut");
       } else if (meta && key === "v") {
         void paste();
       } else if (meta && key === "a") {
@@ -1388,6 +1426,8 @@ export default function App() {
                         <button
                           key={f.path}
                           className={selected.includes(f.path) ? "file-card sel" : "file-card"}
+                          draggable={f.source === "local"}
+                          onDragStart={(e) => beginDrag(e, f)}
                           onClick={(e) => selectEntry(e, f)}
                           onDoubleClick={() => void openEntry(f)}
                           onContextMenu={(e) => {
@@ -1431,6 +1471,8 @@ export default function App() {
                             key={f.path}
                             className={selected.includes(f.path) ? "sel" : ""}
                             style={{ cursor: "pointer" }}
+                            draggable={f.source === "local"}
+                            onDragStart={(e) => beginDrag(e, f)}
                             onClick={(e) => selectEntry(e, f)}
                             onDoubleClick={() => void openEntry(f)}
                             onContextMenu={(e) => {
@@ -2077,10 +2119,10 @@ export default function App() {
             Get Info
           </button>
           <hr />
-          <button onClick={() => { setMenu(null); setClipboard({ mode: "copy", items: selection }); }}>
+          <button onClick={() => { setMenu(null); putOnClipboard("copy"); }}>
             Copy
           </button>
-          <button onClick={() => { setMenu(null); setClipboard({ mode: "cut", items: selection }); }}>
+          <button onClick={() => { setMenu(null); putOnClipboard("cut"); }}>
             Cut
           </button>
           <button disabled={!clipboard} onClick={() => { setMenu(null); void paste(); }}>
